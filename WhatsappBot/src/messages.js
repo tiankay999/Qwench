@@ -22,7 +22,7 @@ I check it against:
 ⏳ *Track record* — how long has it really been operating?
 
 You get back a risk score from 0 to 10:
-🟢 0-3 LOW RISK  🟡 4-6 MEDIUM RISK  🔴 7-10 HIGH RISK
+🟢 0-3 LOW  🟡 3-6 MEDIUM  🟠 6-8 HIGH  🔴 8-10 CRITICAL
 
 *Commands*
 • check — Verify an investment
@@ -72,7 +72,16 @@ export const API_ERROR = `⚠️ I couldn't reach the Qwench servers just now. P
  * Risk report formatting
  * ------------------------------------------------------------------ */
 
-const STATUS_ICON = { licensed: "✅", blacklisted: "❌", revoked: "❌", unknown: "⚠️" };
+const STATUS_ICON = {
+  licensed: "✅",
+  sandbox: "🧪",
+  blacklisted: "❌",
+  revoked: "❌",
+  unregistered: "⚠️",
+  unknown: "⚠️",
+};
+
+const SEVERITY_ICON = { critical: "🔴", high: "🟠", medium: "🟡", low: "⚪" };
 
 /** Build the WhatsApp risk report message from an /api/check result. */
 export function formatRiskReport(r) {
@@ -82,10 +91,17 @@ export function formatRiskReport(r) {
   lines.push(`📌 *${r.name}*`);
   lines.push("");
   lines.push(`Risk Score: ${r.emoji} ${r.riskScore.toFixed(1)}/10 — ${r.riskLevel}`);
+
+  if (r.summary) {
+    lines.push("");
+    lines.push(`_${r.summary}_`);
+  }
+
   lines.push("");
   lines.push(`${STATUS_ICON[r.status] || "⚠️"} *SEC Status:* ${r.statusLabel}`);
+  if (r.citation) lines.push(`⚖️ _${r.citation}_`);
 
-  const isLowRisk = r.riskLevel === "LOW RISK";
+  const isLowRisk = r.riskVerdict === "LOW";
 
   if (isLowRisk && r.greenFlags?.length) {
     lines.push("");
@@ -93,10 +109,17 @@ export function formatRiskReport(r) {
     r.greenFlags.forEach((f, i) => lines.push(`${i + 1}. ${f}`));
   }
 
-  if (r.redFlags?.length) {
+  const flags = r.redFlagsDetailed?.length
+    ? r.redFlagsDetailed
+    : (r.redFlags || []).map((f) => ({ flag: f, severity: "medium" }));
+
+  if (flags.length) {
     lines.push("");
     lines.push(isLowRisk ? "🟡 *Worth noting:*" : "🚩 *Red Flags Found:*");
-    r.redFlags.forEach((f, i) => lines.push(`${i + 1}. ${f}`));
+    flags.forEach((f, i) => {
+      const icon = isLowRisk ? "" : `${SEVERITY_ICON[f.severity] || "🟡"} `;
+      lines.push(`${i + 1}. ${icon}${f.flag}`);
+    });
   }
 
   if (r.contract) {
@@ -132,6 +155,14 @@ export function formatRiskReport(r) {
   lines.push("");
   lines.push(`🔗 Full report: ${WEB_APP_URL}/report/${urlSlug(r.slug)}`);
   lines.push(`📢 Report this: Type "report"`);
+  lines.push(`☎️ SEC Ghana: 0800100065`);
+
+  // Shows whether the verdict came from the AI analyzer or the rule fallback.
+  if (r.analyzedBy) {
+    const by = r.analyzedBy === "ai" ? `AI analysis${r.aiFromCache ? " (cached)" : ""}` : "rule-based scoring";
+    lines.push("");
+    lines.push(`_Assessed by ${by}. Not financial advice._`);
+  }
 
   return lines.join("\n");
 }

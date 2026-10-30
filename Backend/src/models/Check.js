@@ -8,6 +8,8 @@ const checkSchema = new mongoose.Schema(
     result: {
       riskScore: Number,
       riskLevel: String,
+      riskVerdict: String,
+      analyzedBy: String,
       status: String,
       category: String,
       redFlags: [String],

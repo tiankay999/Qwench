@@ -271,6 +271,12 @@ export function validateAssessment(parsed, evidence) {
     score = 2.5;
   }
 
+  // Provisional sandbox approval is not a licence, so it must never show green.
+  if (status === "sandbox" && score < 3.5) {
+    corrections.push(`model scored a sandbox (provisional) entity ${score}, raised to 3.5`);
+    score = 3.5;
+  }
+
   // A licensed entity with no community complaints should not read as alarming.
   const reportCount = evidence?.communityReports?.count || 0;
   if (status === "licensed" && reportCount < 3 && score > 3) {

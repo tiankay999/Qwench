@@ -3,6 +3,7 @@ import makeWASocket, {
   fetchLatestBaileysVersion,
   makeCacheableSignalKeyStore,
   useMultiFileAuthState,
+  areJidsSameUser,
 } from "@whiskeysockets/baileys";
 import pino from "pino";
 import qrcode from "qrcode-terminal";
@@ -17,6 +18,19 @@ const QR_SMALL = process.env.QR_SMALL !== "false";
 const logger = pino({ level: process.env.BAILEYS_LOG_LEVEL || "silent" });
 
 let reconnectAttempts = 0;
+// Track outbound message IDs sent by the bot so it never responds to its own replies
+const sentMessageIds = new Set();
+// Cache recent messages so Baileys can satisfy WhatsApp retry requests (prevents decryption failures)
+const messageStore = new Map();
+
+function saveMessage(id, message) {
+  if (!id || !message) return;
+  if (messageStore.size > 500) {
+    const oldest = messageStore.keys().next().value;
+    messageStore.delete(oldest);
+  }
+  messageStore.set(id, message);
+}
 
 export async function startWhatsApp() {
   // Credentials live in AUTH_DIR, so you only scan the QR code once.
@@ -36,6 +50,9 @@ export async function startWhatsApp() {
     browser: ["Qwench", "Chrome", "1.0.0"],
     generateHighQualityLinkPreview: false,
     syncFullHistory: false,
+    getMessage: async (key) => {
+      return messageStore.get(key.id) || undefined;
+    },
   });
 
   sock.ev.on("creds.update", saveCreds);
@@ -91,9 +108,10 @@ export async function startWhatsApp() {
   });
 
   sock.ev.on("messages.upsert", async ({ messages, type }) => {
-    if (type !== "notify") return;
-
     for (const msg of messages) {
+      if (msg.key?.id && msg.message) {
+        saveMessage(msg.key.id, msg.message);
+      }
       try {
         await handleMessage(sock, msg);
       } catch (err) {
@@ -108,8 +126,32 @@ export async function startWhatsApp() {
 async function handleMessage(sock, msg) {
   const jid = msg.key?.remoteJid;
 
-  if (!jid || msg.key.fromMe) return;
-  if (jid === "status@broadcast") return;
+  if (!jid || jid === "status@broadcast") return;
+
+  // Ignore outbound messages that the bot itself just sent
+  if (msg.key?.id && sentMessageIds.has(msg.key.id)) {
+    sentMessageIds.delete(msg.key.id);
+    return;
+  }
+
+  // Ignore old messages synced on reconnect (> 60s old)
+  const now = Math.floor(Date.now() / 1000);
+  const msgTime = Number(msg.messageTimestamp) || 0;
+  if (msgTime && now - msgTime > 60) return;
+
+  const myId = sock.user?.id;
+  const myLid = sock.user?.lid;
+  const myPhone = myId?.split(":")[0]?.replace(/[^0-9]/g, "");
+  const senderPhone = jid.split("@")[0]?.replace(/[^0-9]/g, "");
+
+  const isSelfChat = Boolean(
+    (myId && areJidsSameUser(jid, myId)) ||
+    (myLid && areJidsSameUser(jid, myLid)) ||
+    (myPhone && senderPhone === myPhone)
+  );
+
+  // If the message was sent from this account, only process it if it's in "Message yourself"
+  if (msg.key.fromMe && !isSelfChat) return;
 
   const isGroup = jid.endsWith("@g.us");
   if (isGroup && !ALLOW_GROUPS) {
@@ -118,25 +160,27 @@ async function handleMessage(sock, msg) {
   }
 
   const text = extractText(msg.message);
-  if (!text) {
-    console.log(`[wa] ignoring non-text message from ${jid}`);
-    return;
-  }
+  if (!text) return;
 
-  const phone = jid.split("@")[0];
-  console.log(`[wa] 📩 from +${phone}: ${text}`);
+  const targetJid = isSelfChat && myPhone ? `${myPhone}@s.whatsapp.net` : jid;
+  const phone = senderPhone || myPhone || "user";
+  console.log(`[wa] 📩 from +${phone}${isSelfChat ? " (self-test)" : ""}: ${text}`);
 
   const send = async (body) => {
-    await sock.sendMessage(jid, { text: body });
+    const sent = await sock.sendMessage(targetJid, { text: body });
+    if (sent?.key?.id) {
+      sentMessageIds.add(sent.key.id);
+      setTimeout(() => sentMessageIds.delete(sent.key.id), 60000);
+    }
     console.log(`[wa] 📤 to +${phone}: ${body.split("\n")[0].slice(0, 60)}...`);
   };
 
   // Show the typing bubble so the wait for the API feels intentional.
-  await sock.sendPresenceUpdate("composing", jid).catch(() => {});
+  await sock.sendPresenceUpdate("composing", targetJid).catch(() => {});
 
-  await routeMessage({ jid, phone, send }, text);
+  await routeMessage({ jid: targetJid, phone, send }, text);
 
-  await sock.sendPresenceUpdate("paused", jid).catch(() => {});
+  await sock.sendPresenceUpdate("paused", targetJid).catch(() => {});
 }
 
 /** Pull plain text out of whichever message shape WhatsApp sent. */

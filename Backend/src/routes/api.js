@@ -1,9 +1,11 @@
 import crypto from "node:crypto";
 import { Router } from "express";
 
+import AiAnalysis from "../models/AiAnalysis.js";
 import Check from "../models/Check.js";
 import Investment from "../models/Investment.js";
 import Report from "../models/Report.js";
+import { aiStatus } from "../services/aiAnalyzer.js";
 import { getTrendingCoins } from "../services/coingecko.js";
 import { runRiskCheck } from "../services/riskEngine.js";
 import { slugify } from "../services/secData.js";
@@ -36,9 +38,11 @@ router.post("/check", async (req, res) => {
       result: {
         riskScore: result.riskScore,
         riskLevel: result.riskLevel,
+        riskVerdict: result.riskVerdict,
         status: result.status,
         category: result.category,
         redFlags: result.redFlags,
+        analyzedBy: result.analyzedBy,
       },
     }).catch((err) => console.warn(`[api] could not log check: ${err.message}`));
 
@@ -166,11 +170,14 @@ router.get("/crypto/trending", async (_req, res) => {
 /* GET /api/stats -- small counter set, handy for the web app dashboard */
 router.get("/stats", async (_req, res) => {
   try {
-    const [checks, reports, licensed, blacklisted] = await Promise.all([
+    const [checks, reports, licensed, sandbox, blacklisted, aiCalls, aiFailures] = await Promise.all([
       Check.countDocuments(),
       Report.countDocuments(),
       Investment.countDocuments({ status: "licensed" }),
+      Investment.countDocuments({ status: "sandbox" }),
       Investment.countDocuments({ status: "blacklisted" }),
+      AiAnalysis.countDocuments(),
+      AiAnalysis.countDocuments({ ok: false }),
     ]);
     res.json({
       ok: true,
@@ -178,7 +185,9 @@ router.get("/stats", async (_req, res) => {
         totalChecks: checks,
         totalReports: reports,
         licensedEntities: licensed,
+        sandboxEntities: sandbox,
         blacklistedEntities: blacklisted,
+        ai: { ...aiStatus(), calls: aiCalls, failures: aiFailures },
       },
     });
   } catch (err) {

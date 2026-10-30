@@ -309,7 +309,9 @@ export function scoreWithRules(evidence) {
     }
   } else if (treatAsCrypto && !token && marketDataUnavailable) {
     redFlags.push("Live market data could not be checked just now — treat this result as incomplete");
-  } else if (treatAsCrypto && !token && !isContract) {
+  } else if (treatAsCrypto && !token && !isContract && status === "unregistered") {
+    // Sandbox and licensed entities are service providers (exchanges, payment
+    // firms), not tokens, so a missing CoinGecko listing means nothing there.
     factors.presence += 1.5;
     redFlags.push("Token does not exist on CoinGecko — no real market data behind it");
   } else if (queryKind === "link") {
@@ -332,6 +334,9 @@ export function scoreWithRules(evidence) {
 
   /* --- Overrides and clamping ------------------------------------- */
   if (status === "licensed" && reportCount < 3) score = Math.min(score, 2.5);
+  // Provisional approval is not a licence, so a sandbox VASP never shows green:
+  // a green badge would read as "SEC approved" to someone about to send money.
+  if (status === "sandbox") score = Math.max(score, 3.5);
   if (status === "sandbox" && reportCount < 3) score = Math.min(score, 5);
   if (status === "blacklisted") score = Math.max(score, 8);
   if (status === "revoked") score = Math.max(score, 7);
@@ -509,8 +514,16 @@ function summaryFor({ name, status, riskVerdict, reportCount }) {
 function severityFor(status, flag) {
   if (/honeypot/i.test(flag)) return "critical";
   if (status === "blacklisted" || status === "revoked") return "critical";
-  if (/not licensed|unlicensed|no legal protection|owner can change/i.test(flag)) return "high";
-  if (/community report|market cap|volume|faceless|no website/i.test(flag)) return "medium";
+  if (/not licensed|unlicensed|no legal protection|owner can change|does not exist|self-destruct|not recognised/i.test(flag)) {
+    return "high";
+  }
+  if (
+    /community report|market cap|volume|faceless|no website|provisional|not covered|only \d+ (day|holder)|less than a year|blacklist wallet|paused|sell tax|not listed/i.test(
+      flag
+    )
+  ) {
+    return "medium";
+  }
   return "low";
 }
 

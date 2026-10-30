@@ -21,8 +21,12 @@ export function slugify(text = "") {
 }
 
 // Strip boilerplate company words so "Menzgold Ghana Limited" matches "menzgold".
+// Legal form, geography and generic structure only. Business-activity words
+// ("investment", "trading", "platform") are deliberately NOT stripped: they
+// distinguish one name from another, and folding them away let "Vaulta
+// Investment" resolve to the sandbox entity "Vaulta" and inherit its standing.
 const SUFFIXES =
-  /\b(ltd|limited|plc|inc|llc|company|co|ghana|gh|group|holdings|services|service|enterprise|enterprises|investment|investments|invest|platform|trading|trade)\b/g;
+  /\b(ltd|limited|plc|inc|llc|company|co|ghana|gh|group|holdings|services|service|enterprise|enterprises)\b/g;
 
 function core(text = "") {
   return slugify(text).replace(SUFFIXES, " ").replace(/\s+/g, " ").trim();
@@ -138,11 +142,34 @@ export function lookupSecEntity(query) {
 
   for (const [k, entry] of index) {
     if (k.length < 5) continue;
-    if (containsWords(keyWords, k.split(" "))) return entry;
+
+    const kWords = k.split(" ");
+    if (!containsWords(keyWords, kWords)) continue;
+
+    const extras = keyWords.filter((w) => !kWords.includes(w));
+    if (extras.every((w) => QUERY_NOISE.has(w))) return entry;
+
+    // The query carries real extra words, so it names something else:
+    // "Black Star Energy" is not "Black Star Advisors". Granting a look-alike
+    // the licensed entity's standing is the worst mistake this tool can make,
+    // so a loose match may only ever carry a WARNING forward, never a clean
+    // bill of health. "Menzgold Premium" still resolves to Menzgold.
+    if (entry.status === "blacklisted" || entry.status === "revoked") return entry;
   }
 
   return null;
 }
+
+// Filler people wrap around a company name when asking about it. Extra words
+// drawn only from this list mean they are still naming the same company.
+const QUERY_NOISE = new Set([
+  "is", "are", "was", "the", "a", "an", "this", "that", "it", "they",
+  "about", "legit", "legitimate", "safe", "good", "bad", "real", "fake",
+  "scam", "scammer", "fraud", "check", "verify", "please", "should", "i",
+  "my", "me", "we", "you", "money", "cash", "with", "in", "on", "to", "for",
+  "of", "and", "or", "from", "any", "info", "information", "tell", "know",
+  "think", "what", "do", "does", "can", "will", "put", "join", "joined",
+]);
 
 /** Does `words` contain `seq` as a consecutive run of whole words? */
 function containsWords(words, seq) {

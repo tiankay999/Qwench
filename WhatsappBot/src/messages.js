@@ -85,7 +85,7 @@ const STATUS_ICON = {
 const SEVERITY_ICON = { critical: "🔴", high: "🟠", medium: "🟡", low: "⚪" };
 
 /** Build the WhatsApp risk report message from an /api/check result. */
-export function formatRiskReport(r, { evidenceSummary = "" } = {}) {
+export function formatRiskReport(r, { evidenceSummary = "", legitMatch = null } = {}) {
   const lines = [];
 
   lines.push(r.evidenceCount ? "🛡️ *Qwench Risk Report — Evidence-Based*" : "🛡️ *Qwench Risk Report*");
@@ -158,6 +158,10 @@ export function formatRiskReport(r, { evidenceSummary = "" } = {}) {
 
   lines.push("");
   lines.push(`💡 *Recommendation:* ${r.recommendation}`);
+  // If a registered company sits near this name, the user must leave knowing
+  // where the real one is -- that is the whole point of checking.
+  if (legitMatch) lines.push(formatRegisteredAlternative(legitMatch));
+
   lines.push("");
   lines.push(`🔗 Full report: ${WEB_APP_URL}/report/${urlSlug(r.slug)}`);
   lines.push(`📢 Report this: Type "report"`);
@@ -265,11 +269,20 @@ export function formatBlacklistVariantAlert(v) {
 /** Loose similarity: proceed, but say what it resembles. */
 export function formatSoftWarning(v) {
   const icon = MATCH_ICON[v.match.status] || "⚠️";
-  return [
-    `🔎 Note: *"${v.query}"* looks like ${icon} *${v.match.name}* — ${v.match.statusLabel}.`,
-    "",
-    "Checking the name you sent...",
-  ].join("\n");
+  const lines = [];
+
+  if (v.isSameEntity && v.matchIsLegit) {
+    // They typed the company's informal name. Confirm the registered one so
+    // they know exactly who they are dealing with.
+    lines.push(`${icon} *${v.match.name}* is the registered name for that.`);
+    lines.push(`   ${v.match.statusLabel}${v.match.licenseType ? ` — ${v.match.licenseType}` : ""}`);
+  } else {
+    lines.push(`🔎 Note: *"${v.query}"* looks like ${icon} *${v.match.name}* — ${v.match.statusLabel}.`);
+  }
+
+  lines.push("");
+  lines.push("Checking the name you sent...");
+  return lines.join("\n");
 }
 
 /* ------------------------------------------------------------------ *
@@ -371,4 +384,48 @@ export function formatAuthorityCard(r) {
   lines.push("☎️ SEC Ghana: 0800100065");
 
   return lines.join("\n");
+}
+
+/**
+ * A REGISTERED company sits close to what the user typed, and the query itself
+ * is not obviously an impersonation attempt. Show them the real one: someone
+ * may simply not know the company's exact registered name.
+ */
+export function formatLegitLookalike(v) {
+  const icon = MATCH_ICON[v.match.status] || "✅";
+  const lines = [];
+
+  lines.push("✅ *A registered company matches that name*");
+  lines.push("");
+  lines.push(`You searched for: *${v.query}*`);
+  lines.push("");
+  lines.push("There is a real, registered entity with a similar name:");
+  lines.push(`${icon} *${v.match.name}*`);
+  lines.push(`   ${v.match.statusLabel}${v.match.licenseType ? ` — ${v.match.licenseType}` : ""}`);
+  lines.push("");
+  lines.push(`But *"${v.query}"* is not how it is registered, so I want to be sure which one you mean.`);
+  lines.push("");
+  lines.push("👉 Which should I check?");
+  lines.push(`1️⃣ *${v.match.name}* (the registered company)`);
+  lines.push(`2️⃣ *${v.query}* (exactly what you typed)`);
+  lines.push("");
+  lines.push("Reply *1* or *2*");
+
+  return lines.join("\n");
+}
+
+/**
+ * Footer appended to a risk report when a legitimate registered entity sits
+ * near the name that was checked -- so the user always leaves knowing where
+ * the real company is.
+ */
+export function formatRegisteredAlternative(match) {
+  if (!match) return "";
+  const icon = MATCH_ICON[match.status] || "✅";
+  return [
+    "",
+    `${icon} *The registered company with a similar name is:*`,
+    `*${match.name}* — ${match.statusLabel}${match.licenseType ? ` (${match.licenseType})` : ""}`,
+    `_Send me "${match.name}" to check that one instead._`,
+  ].join("\n");
 }

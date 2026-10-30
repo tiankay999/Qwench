@@ -2,6 +2,7 @@ import { verifyName } from "../api.js";
 import {
   SPOOF_INVALID_CHOICE,
   formatBlacklistVariantAlert,
+  formatLegitLookalike,
   formatSoftWarning,
   formatSpoofConfirmation,
 } from "../messages.js";
@@ -26,15 +27,20 @@ export async function verifyBeforeCheck(ctx, query) {
     return false;
   }
 
-  if (v.decision === "spoofing_alert") {
+  if (v.decision === "spoofing_alert" || v.decision === "legit_lookalike") {
     session.draft = {
       spoofQuery: v.query,
       spoofMatch: v.match,
       spoofingDetection: v.spoofingDetection,
       injectedFlags: v.injectedFlags,
+      // A registered entity to point the user at, whichever option they pick.
+      legitMatch: v.matchIsLegit ? v.match : null,
     };
     setState(session, STATE.AWAITING_SPOOF_CHOICE);
-    await send(formatSpoofConfirmation(v));
+
+    // A suspected impersonation and a plain name mix-up need different wording:
+    // one is a warning, the other is just helping them find the real company.
+    await send(v.decision === "spoofing_alert" ? formatSpoofConfirmation(v) : formatLegitLookalike(v));
     return true;
   }
 
@@ -50,7 +56,9 @@ export async function verifyBeforeCheck(ctx, query) {
 
   if (v.decision === "soft_warning") {
     await send(formatSoftWarning(v));
-    return false; // carry on with the normal check
+    // Carry on, but remember the registered entity so the report can point at
+    // it. Not for the "same entity" case -- there is nothing else to offer.
+    return v.matchIsLegit && !v.isSameEntity ? { continueWith: { legitMatch: v.match } } : false;
   }
 
   return false;
@@ -80,10 +88,13 @@ export async function handleSpoofChoice(ctx, text) {
     const detection = draft.spoofingDetection
       ? { ...draft.spoofingDetection, userChoice: "investigate_separately" }
       : null;
+    const legitMatch = draft.legitMatch;
     resetSession(session);
     return runCheck(ctx, draft.spoofQuery, {
       spoofingDetection: detection,
       injectedFlags: draft.injectedFlags || [],
+      // Even when they check the look-alike, end by pointing at the real one.
+      legitMatch,
     });
   }
 

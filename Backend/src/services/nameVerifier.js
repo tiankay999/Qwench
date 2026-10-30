@@ -247,6 +247,7 @@ function subtractSequence(words, seq) {
  * ------------------------------------------------------------------ */
 
 const STATUS_LABEL = {
+  authority: "Ghanaian regulator / government body",
   licensed: "SEC Ghana licensed entity",
   sandbox: "SEC Ghana Virtual Asset Sandbox participant",
   blacklisted: "SEC Ghana blacklisted entity",
@@ -270,6 +271,8 @@ export async function verifyName(rawQuery) {
     normalized: normalizeBasic(query),
     decision: "no_match",
     match: null,
+    matchIsLegit: false,
+    isSameEntity: false,
     fuseScore: null,
     similarity: null,
     spoofIndicators: [],
@@ -288,7 +291,15 @@ export async function verifyName(rawQuery) {
 
   if (variant?.exact) {
     console.log(`[verify] "${query}" is an exact match for ${variant.k.entity.name} (${variant.k.entity.status})`);
-    return { ...base, decision: "exact", match: entityOut(variant.k.entity), fuseScore: 0, similarity: 1 };
+    return {
+      ...base,
+      decision: "exact",
+      match: entityOut(variant.k.entity),
+      matchIsLegit: ["licensed", "sandbox", "authority"].includes(variant.k.entity.status),
+      isSameEntity: true,
+      fuseScore: 0,
+      similarity: 1,
+    };
   }
 
   if (variant) {
@@ -332,14 +343,35 @@ export async function verifyName(rawQuery) {
   }
 
   if (ratio > 0.34) {
+    const legit = ["licensed", "sandbox", "authority"].includes(entity.status);
+    const indicators = [`loosely similar to "${entity.name}"`];
+
+    // A registered entity sits close to what they typed. Show it to them
+    // instead of burying it in a one-line note -- someone searching a
+    // look-alike may simply not know the real company's exact name.
+    if (legit) {
+      console.log(`[verify] "${query}" is near registered "${entity.name}" -- offering the real one`);
+      return {
+        ...base,
+        decision: "legit_lookalike",
+        match: entityOut(entity),
+        matchIsLegit: true,
+        fuseScore: score,
+        similarity,
+        spoofIndicators: indicators,
+        needsConfirmation: true,
+      };
+    }
+
     console.log(`[verify] "${query}" -> soft warning, loosely like ${entity.name} (edit ratio ${ratio.toFixed(2)})`);
     return {
       ...base,
       decision: "soft_warning",
       match: entityOut(entity),
+      matchIsLegit: false,
       fuseScore: score,
       similarity,
-      spoofIndicators: [`loosely similar to "${entity.name}"`],
+      spoofIndicators: indicators,
     };
   }
 
@@ -397,12 +429,45 @@ function decide({ base, query, entity, indicators, similarity, fuseScore = null,
     };
   }
 
-  // Either only ordinary corporate suffixes were added, or the extra words
-  // point to a different business rather than borrowed authority. Mention it,
-  // but do not accuse anyone of impersonation.
-  if (allBenign || !escalate) {
+  const matchIsLegit = ["licensed", "sandbox", "authority"].includes(entity.status);
+
+  // Only ordinary corporate suffixes were added ("Databank Ghana Ltd"), so this
+  // almost certainly IS that company. Proceed, naming the registered entity.
+  if (allBenign) {
     console.log(`[verify] "${query}" -> soft warning (benign suffix on ${entity.name})`);
-    return { ...base, decision: "soft_warning", match, fuseScore, similarity, spoofIndicators: indicators };
+    return {
+      ...base,
+      decision: "soft_warning",
+      match,
+      matchIsLegit,
+      isSameEntity: true,
+      fuseScore,
+      similarity,
+      spoofIndicators: indicators,
+    };
+  }
+
+  // Looks like a different business, but a REGISTERED one exists under a close
+  // name. Point the user at it: someone searching a look-alike may simply not
+  // know the real company's exact name, and showing them it exists is the most
+  // useful thing Qwench can do here.
+  if (!escalate && matchIsLegit) {
+    console.log(`[verify] ℹ️  "${query}" resembles registered "${entity.name}" -- offering the real one`);
+    return {
+      ...base,
+      decision: "legit_lookalike",
+      match,
+      matchIsLegit: true,
+      fuseScore,
+      similarity,
+      spoofIndicators: indicators,
+      needsConfirmation: true,
+    };
+  }
+
+  if (!escalate) {
+    console.log(`[verify] "${query}" -> soft warning (different wording vs ${entity.name})`);
+    return { ...base, decision: "soft_warning", match, matchIsLegit, fuseScore, similarity, spoofIndicators: indicators };
   }
 
   console.log(`[verify] ⚠️  "${query}" resembles ${entity.status} entity "${entity.name}" -- asking the user`);
@@ -413,6 +478,7 @@ function decide({ base, query, entity, indicators, similarity, fuseScore = null,
     fuseScore,
     similarity,
     spoofIndicators: indicators,
+    matchIsLegit,
     needsConfirmation: true,
     injectedFlags: [
       {

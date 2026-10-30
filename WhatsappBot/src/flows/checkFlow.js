@@ -19,7 +19,7 @@ export function extractUrls(text) {
  */
 export async function runCheck(ctx, query, opts = {}) {
   const { send, session } = ctx;
-  const { spoofingDetection, injectedFlags, evidence, suppressEvidencePrompt } = opts;
+  const { spoofingDetection, injectedFlags, evidence, suppressEvidencePrompt, legitMatch } = opts;
 
   resetSession(session);
   await send(CHECKING(query));
@@ -57,7 +57,7 @@ export async function runCheck(ctx, query, opts = {}) {
       })
     : "";
 
-  await send(formatRiskReport(result, { evidenceSummary: header }));
+  await send(formatRiskReport(result, { evidenceSummary: header, legitMatch }));
 
   // Nothing corroborated this verdict, so give the user the report and then
   // offer to improve it rather than leaving a name-only judgement to stand.

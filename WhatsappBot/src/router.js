@@ -112,9 +112,14 @@ export async function routeMessage(ctx, rawText, media = null) {
  * in which case it has already replied.
  */
 async function checkWithVerification(ctx, query) {
-  const tookOver = await verifyBeforeCheck(ctx, query);
-  if (tookOver) return;
-  return runCheck(ctx, query);
+  const outcome = await verifyBeforeCheck(ctx, query);
+
+  // true = verification is handling the conversation (it asked a question).
+  if (outcome === true) return;
+
+  // An object means "carry on, but with this extra context" -- currently a
+  // registered entity to point at once the report is ready.
+  return runCheck(ctx, query, outcome?.continueWith || {});
 }
 
 function isGreeting(command) {

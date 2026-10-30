@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Qwench WhatsApp Prototype</title>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+</head>
+
+<body>
+<center><x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body { margin: 0; font-family: 'Inter', -apple-system, system-ui, sans-serif; }
+a { color: #0891B2; } a:hover { color: #0E7490; }
+@keyframes dot1 { 0%,60%,100%{transform:translateY(0);opacity:.4} 30%{transform:translateY(-3px);opacity:1} }
+@keyframes dot2 { 0%,60%,100%{transform:translateY(0);opacity:.4} 30%{transform:translateY(-3px);opacity:1} }
+@keyframes dot3 { 0%,60%,100%{transform:translateY(0);opacity:.4} 30%{transform:translateY(-3px);opacity:1} }
+</style>
+</helmet>
+
+<div style="width: 480px; height: 940px; box-sizing: border-box; background: {{outerBg}}; display: flex; flex-direction: column; align-items: center; padding: 16px 0 0;">
+
+  <!-- Flow tabs + theme toggle -->
+  <div style="display: flex; align-items: center; gap: 6px; padding: 0 20px; width: 100%; box-sizing: border-box;">
+    <button onClick="{{goFlow1}}" style="flex: 1; height: 34px; border-radius: 8px; border: none; background: {{tab1Bg}}; color: {{tab1Color}}; font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit; padding: 0 2px;" aria-label="Flow 1: Onboarding">Onboarding</button>
+    <button onClick="{{goFlow2}}" style="flex: 1; height: 34px; border-radius: 8px; border: none; background: {{tab2Bg}}; color: {{tab2Color}}; font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit; padding: 0 2px;" aria-label="Flow 2: High Risk">High Risk</button>
+    <button onClick="{{goFlow3}}" style="flex: 1; height: 34px; border-radius: 8px; border: none; background: {{tab3Bg}}; color: {{tab3Color}}; font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit; padding: 0 2px;" aria-label="Flow 3: Safe Check">Safe Check</button>
+    <button onClick="{{goFlow4}}" style="flex: 1; height: 34px; border-radius: 8px; border: none; background: {{tab4Bg}}; color: {{tab4Color}}; font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit; padding: 0 2px;" aria-label="Flow 4: Report">Report</button>
+    <button onClick="{{toggleDark}}" style="width: 34px; height: 34px; border-radius: 8px; border: none; background: {{toggleBg}}; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 0;" aria-label="Toggle dark mode">
+      <sc-if value="{{isSun}}" hint-placeholder-val="{{true}}">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{{toggleColor}}" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+      </sc-if>
+      <sc-if value="{{isMoon}}">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{{toggleColor}}" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"></path></svg>
+      </sc-if>
+    </button>
+  </div>
+
+  <!-- Phone frame -->
+  <div style="width: 390px; margin-top: 16px; flex: 1; max-height: 860px; background: {{frameBg}}; border-radius: 44px; padding: 6px; box-sizing: border-box; box-shadow: {{frameShadow}};">
+    <div style="width: 100%; height: 100%; border-radius: 38px; overflow: hidden; display: flex; flex-direction: column; position: relative; background: {{chatBg}};">
+
+      <!-- Dynamic Island -->
+      <div style="position: absolute; top: 8px; left: 50%; transform: translateX(-50%); width: 86px; height: 24px; background: #000; border-radius: 12px; z-index: 10;"></div>
+
+      <!-- Status bar overlay -->
+      <div style="position: absolute; top: 0; left: 0; right: 0; height: 54px; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 26px 6px; box-sizing: border-box; z-index: 5;">
+        <span style="font-size: 14px; font-weight: 600; color: #FFF; letter-spacing: 0.3px;">9:41</span>
+        <div style="display: flex; gap: 5px; align-items: center;">
+          <svg width="16" height="11" viewBox="0 0 16 11" fill="#FFF"><rect x="0" y="7" width="3" height="4" rx="0.5"></rect><rect x="4.5" y="4.5" width="3" height="6.5" rx="0.5"></rect><rect x="9" y="2" width="3" height="9" rx="0.5"></rect><rect x="13" y="0" width="3" height="11" rx="0.5"></rect></svg>
+          <svg width="15" height="11" viewBox="0 0 15 11" fill="none" stroke="#FFF" stroke-width="1.5" stroke-linecap="round"><path d="M.5 3.5c4-4 10-4 14 0"></path><path d="M3.5 6.5c2.5-2.5 5.5-2.5 8 0"></path><circle cx="7.5" cy="9.5" r="1" fill="#FFF" stroke="none"></circle></svg>
+          <svg width="24" height="11" viewBox="0 0 24 11"><rect x="0.5" y="0.5" width="20" height="10" rx="2" stroke="#FFF" stroke-width="1" fill="none"></rect><rect x="2" y="2" width="16" height="7" rx="1" fill="#FFF"></rect><path d="M22 3.5v4a2.5 2.5 0 000-4z" fill="#FFF"></path></svg>
+        </div>
+      </div>
+
+      <!-- WhatsApp header -->
+      <div style="height: 102px; background: {{headerBg}}; display: flex; align-items: flex-end; padding: 0 6px 10px; gap: 6px; flex-shrink: 0;">
+        <!-- Back arrow -->
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M15 18l-6-6 6-6"></path></svg>
+        <!-- Avatar -->
+        <div style="width: 38px; height: 38px; border-radius: 19px; overflow: hidden; flex-shrink: 0;">
+          <svg width="38" height="38" viewBox="0 0 38 38"><circle cx="19" cy="19" r="19" fill="#0891B2"></circle><path d="M19 9L11 13v5.5c0 5.8 3.4 11.2 8 12.5 4.6-1.3 8-6.7 8-12.5V13L19 9z" fill="rgba(255,255,255,0.25)" stroke="rgba(255,255,255,0.5)" stroke-width="0.5"></path><text x="19" y="23.5" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="13" font-weight="700" fill="#FFF">Q</text></svg>
+        </div>
+        <!-- Name + status -->
+        <div style="flex: 1; min-width: 0;">
+          <div style="font-size: 16px; font-weight: 600; color: #FFF; line-height: 1.2;">Qwench</div>
+          <div style="font-size: 12px; color: rgba(255,255,255,0.7); line-height: 1.3;">online</div>
+        </div>
+        <!-- Header icons -->
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFF" stroke-width="1.5" style="flex-shrink: 0;"><rect x="2" y="6" width="13" height="12" rx="2"></rect><path d="M22 8l-5 4 5 4V8z"></path></svg>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFF" stroke-width="1.5" style="flex-shrink: 0;"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.13.96.36 1.9.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0122 16.92z"></path></svg>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="#FFF" style="flex-shrink: 0;"><circle cx="12" cy="6" r="1.5"></circle><circle cx="12" cy="12" r="1.5"></circle><circle cx="12" cy="18" r="1.5"></circle></svg>
+      </div>
+
+      <!-- Chat area -->
+      <div style="flex: 1; background: {{chatBg}}; overflow-y: auto; padding: 8px 14px; display: flex; flex-direction: column;">
+
+        <!-- ===== FLOW 1: ONBOARDING ===== -->
+        <sc-if value="{{isFlow1}}" hint-placeholder-val="{{true}}">
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <!-- Date chip -->
+            <div style="display: flex; justify-content: center; margin: 4px 0 8px;">
+              <span style="background: {{sysBg}}; color: {{sysTxt}}; font-size: 11.5px; padding: 4px 12px; border-radius: 8px; box-shadow: 0 1px 0.5px rgba(0,0,0,0.1);">TODAY</span>
+            </div>
+            <!-- Encryption notice -->
+            <div style="display: flex; justify-content: center; margin: 0 0 12px;">
+              <div style="background: {{sysBg}}; color: {{sysTxt}}; font-size: 11px; padding: 6px 14px; border-radius: 8px; text-align: center; max-width: 85%; line-height: 1.4; box-shadow: 0 1px 0.5px rgba(0,0,0,0.1);">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="{{sysTxt}}" style="vertical-align: -1px; margin-right: 3px;"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3-9H9V6c0-1.66 1.34-3 3-3s3 1.34 3 3v2z"></path></svg>
+                Messages and calls are end-to-end encrypted. No one outside of this chat, not even WhatsApp, can read or listen to them.
+              </div>
+            </div>
+            <!-- Sent: Hi -->
+            <div style="display: flex; justify-content: flex-end; margin-bottom: 2px;">
+              <div style="position: relative; max-width: 75%;">
+                <div style="background: {{sntBg}}; border-radius: 8px 0 8px 8px; padding: 6px 8px 3px; box-shadow: 0 1px 0.5px rgba(0,0,0,0.13);">
+                  <p style="margin: 0; font-size: 14.2px; line-height: 1.35; color: {{txt}};">Hi</p>
+                  <div style="display: flex; justify-content: flex-end; align-items: center; gap: 3px; margin-top: 1px;">
+                    <span style="font-size: 11px; color: {{sntTime}};">3:30 PM</span>
+                    <svg width="16" height="11" viewBox="0 0 16 11" fill="#53BDEB"><path d="M11 .7L4.5 7.3 2.2 5 .8 6.3 4.5 10 12.4 2 11 .7z"></path><path d="M15 .7L8.5 7.3l-.7-.7-1.4 1.4 2.1 2 8-8L15 .7z"></path></svg>
+                  </div>
+                </div>
+                <div style="position: absolute; top: 0; right: -7px; width: 0; height: 0; border-top: 7px solid {{sntBg}}; border-right: 7px solid transparent;"></div>
+              </div>
+            </div>
+            <!-- Received: Welcome message -->
+            <div style="display: flex; margin-bottom: 2px;">
+              <div style="position: relative; max-width: 85%;">
+                <div style="background: {{rcvBg}}; border-radius: 0 8px 8px 8px; padding: 6px 8px 3px; box-shadow: 0 1px 0.5px rgba(0,0,0,0.13);">
+                  <p style="margin: 0; font-size: 14.2px; line-height: 1.45; color: {{txt}};">Welcome to Qwench 🛡️ — your investment protection assistant.</p>
+                  <p style="margin: 6px 0 0; font-size: 14.2px; line-height: 1.45; color: {{txt}};">Send me any company name, token, or investment link and I'll check if it's safe.</p>
+                  <div style="display: flex; justify-content: flex-end; margin-top: 2px;">
+                    <span style="font-size: 11px; color: {{time}};">3:30 PM</span>
+                  </div>
+                </div>
+                <div style="position: absolute; top: 0; left: -7px; width: 0; height: 0; border-top: 7px solid {{rcvBg}}; border-left: 7px solid transparent;"></div>
+              </div>
+            </div>
+            <!-- Quick reply buttons -->
+            <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; padding-left: 4px;">
+              <div style="border: 1px solid {{btnBorder}}; border-radius: 20px; padding: 7px 16px; font-size: 13.5px; color: {{btnTxt}}; font-weight: 500; cursor: pointer;">Check an investment</div>
+              <div style="border: 1px solid {{btnBorder}}; border-radius: 20px; padding: 7px 16px; font-size: 13.5px; color: {{btnTxt}}; font-weight: 500; cursor: pointer;">Report a scam</div>
+              <div style="border: 1px solid {{btnBorder}}; border-radius: 20px; padding: 7px 16px; font-size: 13.5px; color: {{btnTxt}}; font-weight: 500; cursor: pointer;">How it works</div>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- ===== FLOW 2: HIGH RISK CHECK ===== -->
+        <sc-if value="{{isFlow2}}">
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <!-- Date chip -->
+            <div style="display: flex; justify-content: center; margin: 4px 0 8px;">
+              <span style="background: {{sysBg}}; color: {{sysTxt}}; font-size: 11.5px; padding: 4px 12px; border-radius: 8px; box-shadow: 0 1px 0.5px rgba(0,0,0,0.1);">TODAY</span>
+            </div>
+            <!-- Sent: company name -->
+            <div style="display: flex; justify-content: flex-end; margin-bottom: 2px;">
+              <div style="position: relative; max-width: 75%;">
+                <div style="background: {{sntBg}}; border-radius: 8px 0 8px 8px; padding: 6px 8px 3px; box-shadow: 0 1px 0.5px rgba(0,0,0,0.13);">
+                  <p style="margin: 0; font-size: 14.2px; line-height: 1.35; color: {{txt}};">Loom Network Ghana</p>
+                  <div style="display: flex; justify-content: flex-end; align-items: center; gap: 3px; margin-top: 1px;">
+                    <span style="font-size: 11px; color: {{sntTime}};">3:32 PM</span>
+                    <svg width="16" height="11" viewBox="0 0 16 11" fill="#53BDEB"><path d="M11 .7L4.5 7.3 2.2 5 .8 6.3 4.5 10 12.4 2 11 .7z"></path><path d="M15 .7L8.5 7.3l-.7-.7-1.4 1.4 2.1 2 8-8L15 .7z"></path></svg>
+                  </div>
+                </div>
+                <div style="position: absolute; top: 0; right: -7px; width: 0; height: 0; border-top: 7px solid {{sntBg}}; border-right: 7px solid transparent;"></div>
+              </div>
+            </div>
+            <!-- Received: Risk assessment -->
+            <div style="display: flex; margin-bottom: 2px;">
+              <div style="position: relative; max-width: 90%;">
+                <div style="background: {{rcvBg}}; border-radius: 0 8px 8px 8px; padding: 8px 10px 5px; box-shadow: 0 1px 0.5px rgba(0,0,0,0.13);">
+                  <!-- Risk Score Header -->
+                  <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+                    <span style="font-size: 20px; line-height: 1;">🔴</span>
+                    <div>
+                      <div style="font-size: 11px; color: {{time}}; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">Risk Score</div>
+                      <div style="font-size: 16px; font-weight: 700; color: #DC2626;">HIGH RISK (8.2/10)</div>
+                    </div>
+                  </div>
+                  <!-- Risk bar -->
+                  <div style="width: 100%; height: 5px; background: rgba(128,128,128,0.15); border-radius: 3px; margin-bottom: 10px;">
+                    <div style="width: 82%; height: 100%; background: #DC2626; border-radius: 3px;"></div>
+                  </div>
+                  <!-- SEC Status -->
+                  <div style="border-top: 1px solid rgba(128,128,128,0.15); padding: 8px 0;">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                      <span style="font-size: 15px;">❌</span>
+                      <div>
+                        <div style="font-size: 11px; color: {{time}}; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">SEC Status</div>
+                        <div style="font-size: 13.5px; color: {{txt}}; font-weight: 500;">Not licensed by SEC Ghana</div>
+                      </div>
+                    </div>
+                  </div>
+                  <!-- Red Flags -->
+                  <div style="border-top: 1px solid rgba(128,128,128,0.15); padding: 8px 0 4px;">
+                    <div style="font-size: 11px; color: {{time}}; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 6px;">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="#DC2626" style="vertical-align: -1px; margin-right: 2px;"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"></path></svg>
+                      Red Flags Found: 3
+                    </div>
+                    <div style="font-size: 13px; color: {{txt}}; line-height: 1.6; padding-left: 4px;">
+                      <div style="display: flex; gap: 6px; align-items: flex-start;"><span style="color: #DC2626; font-weight: 700; flex-shrink: 0;">•</span><span>Promises 30% monthly returns</span></div>
+                      <div style="display: flex; gap: 6px; align-items: flex-start;"><span style="color: #DC2626; font-weight: 700; flex-shrink: 0;">•</span><span>No verifiable team</span></div>
+                      <div style="display: flex; gap: 6px; align-items: flex-start;"><span style="color: #DC2626; font-weight: 700; flex-shrink: 0;">•</span><span>Not registered with SEC Ghana</span></div>
+                    </div>
+                  </div>
+                  <!-- Action buttons -->
+                  <div style="border-top: 1px solid rgba(128,128,128,0.15); padding-top: 8px; display: flex; gap: 6px; margin-top: 4px;">
+                    <div style="flex: 1; text-align: center; padding: 8px; border: 1px solid {{btnBorder}}; border-radius: 8px; font-size: 13px; color: {{btnTxt}}; font-weight: 600; cursor: pointer;">See Full Report</div>
+                    <div style="flex: 1; text-align: center; padding: 8px; border: 1px solid #DC2626; border-radius: 8px; font-size: 13px; color: #DC2626; font-weight: 600; cursor: pointer;">Report This</div>
+                  </div>
+                  <div style="display: flex; justify-content: flex-end; margin-top: 4px;">
+                    <span style="font-size: 11px; color: {{time}};">3:32 PM</span>
+                  </div>
+                </div>
+                <div style="position: absolute; top: 0; left: -7px; width: 0; height: 0; border-top: 7px solid {{rcvBg}}; border-left: 7px solid transparent;"></div>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- ===== FLOW 3: SAFE CHECK ===== -->
+        <sc-if value="{{isFlow3}}">
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <!-- Date chip -->
+            <div style="display: flex; justify-content: center; margin: 4px 0 8px;">
+              <span style="background: {{sysBg}}; color: {{sysTxt}}; font-size: 11.5px; padding: 4px 12px; border-radius: 8px; box-shadow: 0 1px 0.5px rgba(0,0,0,0.1);">TODAY</span>
+            </div>
+            <!-- Sent: company name -->
+            <div style="display: flex; justify-content: flex-end; margin-bottom: 2px;">
+              <div style="position: relative; max-width: 75%;">
+                <div style="background: {{sntBg}}; border-radius: 8px 0 8px 8px; padding: 6px 8px 3px; box-shadow: 0 1px 0.5px rgba(0,0,0,0.13);">
+                  <p style="margin: 0; font-size: 14.2px; line-height: 1.35; color: {{txt}};">Databank Ghana</p>
+                  <div style="display: flex; justify-content: flex-end; align-items: center; gap: 3px; margin-top: 1px;">
+                    <span style="font-size: 11px; color: {{sntTime}};">3:35 PM</span>
+                    <svg width="16" height="11" viewBox="0 0 16 11" fill="#53BDEB"><path d="M11 .7L4.5 7.3 2.2 5 .8 6.3 4.5 10 12.4 2 11 .7z"></path><path d="M15 .7L8.5 7.3l-.7-.7-1.4 1.4 2.1 2 8-8L15 .7z"></path></svg>
+                  </div>
+                </div>
+                <div style="position: absolute; top: 0; right: -7px; width: 0; height: 0; border-top: 7px solid {{sntBg}}; border-right: 7px solid transparent;"></div>
+              </div>
+            </div>
+            <!-- Received: Safe assessment -->
+            <div style="display: flex; margin-bottom: 2px;">
+              <div style="position: relative; max-width: 90%;">
+                <div style="background: {{rcvBg}}; border-radius: 0 8px 8px 8px; padding: 8px 10px 5px; box-shadow: 0 1px 0.5px rgba(0,0,0,0.13);">
+                  <!-- Risk Score Header -->
+                  <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+                    <span style="font-size: 20px; line-height: 1;">🟢</span>
+                    <div>
+                      <div style="font-size: 11px; color: {{time}}; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">Risk Score</div>
+                      <div style="font-size: 16px; font-weight: 700; color: #16A34A;">LOW RISK (1.5/10)</div>
+                    </div>
+                  </div>
+                  <!-- Risk bar -->
+                  <div style="width: 100%; height: 5px; background: rgba(128,128,128,0.15); border-radius: 3px; margin-bottom: 10px;">
+                    <div style="width: 15%; height: 100%; background: #16A34A; border-radius: 3px;"></div>
+                  </div>
+                  <!-- SEC Status -->
+                  <div style="border-top: 1px solid rgba(128,128,128,0.15); padding: 8px 0;">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                      <span style="font-size: 15px;">✅</span>
+                      <div>
+                        <div style="font-size: 11px; color: {{time}}; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">SEC Status</div>
+                        <div style="font-size: 13.5px; color: {{txt}}; font-weight: 500;">Licensed by SEC Ghana</div>
+                      </div>
+                    </div>
+                  </div>
+                  <!-- Verified info -->
+                  <div style="border-top: 1px solid rgba(128,128,128,0.15); padding: 8px 0 4px;">
+                    <div style="font-size: 11px; color: {{time}}; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 6px;">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="#16A34A" style="vertical-align: -1px; margin-right: 2px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"></path></svg>
+                      Verified Information
+                    </div>
+                    <div style="font-size: 13px; color: {{txt}}; line-height: 1.6; padding-left: 4px;">
+                      <div style="display: flex; gap: 6px; align-items: flex-start;"><span style="color: #16A34A; font-weight: 700; flex-shrink: 0;">•</span><span>Registered since 1990</span></div>
+                      <div style="display: flex; gap: 6px; align-items: flex-start;"><span style="color: #16A34A; font-weight: 700; flex-shrink: 0;">•</span><span>Regulated fund manager</span></div>
+                      <div style="display: flex; gap: 6px; align-items: flex-start;"><span style="color: #16A34A; font-weight: 700; flex-shrink: 0;">•</span><span>SEC Ghana License #BDL/FMC/001</span></div>
+                    </div>
+                  </div>
+                  <!-- Action button -->
+                  <div style="border-top: 1px solid rgba(128,128,128,0.15); padding-top: 8px; margin-top: 4px;">
+                    <div style="text-align: center; padding: 8px; border: 1px solid {{btnBorder}}; border-radius: 8px; font-size: 13px; color: {{btnTxt}}; font-weight: 600; cursor: pointer;">See Full Report</div>
+                  </div>
+                  <div style="display: flex; justify-content: flex-end; margin-top: 4px;">
+                    <span style="font-size: 11px; color: {{time}};">3:35 PM</span>
+                  </div>
+                </div>
+                <div style="position: absolute; top: 0; left: -7px; width: 0; height: 0; border-top: 7px solid {{rcvBg}}; border-left: 7px solid transparent;"></div>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- ===== FLOW 4: COMMUNITY REPORT ===== -->
+        <sc-if value="{{isFlow4}}">
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <!-- Date chip -->
+            <div style="display: flex; justify-content: center; margin: 4px 0 8px;">
+              <span style="background: {{sysBg}}; color: {{sysTxt}}; font-size: 11.5px; padding: 4px 12px; border-radius: 8px; box-shadow: 0 1px 0.5px rgba(0,0,0,0.1);">TODAY</span>
+            </div>
+            <!-- Sent: Report a scam (tapped button) -->
+            <div style="display: flex; justify-content: flex-end; margin-bottom: 2px;">
+              <div style="position: relative; max-width: 75%;">
+                <div style="background: {{sntBg}}; border-radius: 8px 0 8px 8px; padding: 6px 8px 3px; box-shadow: 0 1px 0.5px rgba(0,0,0,0.13);">
+                  <p style="margin: 0; font-size: 14.2px; line-height: 1.35; color: {{txt}};">Report a scam</p>
+                  <div style="display: flex; justify-content: flex-end; align-items: center; gap: 3px; margin-top: 1px;">
+                    <span style="font-size: 11px; color: {{sntTime}};">3:38 PM</span>
+                    <svg width="16" height="11" viewBox="0 0 16 11" fill="#53BDEB"><path d="M11 .7L4.5 7.3 2.2 5 .8 6.3 4.5 10 12.4 2 11 .7z"></path><path d="M15 .7L8.5 7.3l-.7-.7-1.4 1.4 2.1 2 8-8L15 .7z"></path></svg>
+                  </div>
+                </div>
+                <div style="position: absolute; top: 0; right: -7px; width: 0; height: 0; border-top: 7px solid {{sntBg}}; border-right: 7px solid transparent;"></div>
+              </div>
+            </div>
+            <!-- Received: Ask for company name -->
+            <div style="display: flex; margin-bottom: 2px;">
+              <div style="position: relative; max-width: 85%;">
+                <div style="background: {{rcvBg}}; border-radius: 0 8px 8px 8px; padding: 6px 8px 3px; box-shadow: 0 1px 0.5px rgba(0,0,0,0.13);">
+                  <p style="margin: 0; font-size: 14.2px; line-height: 1.45; color: {{txt}};">What's the name of the company or scheme?</p>
+                  <div style="display: flex; justify-content: flex-end; margin-top: 2px;">
+                    <span style="font-size: 11px; color: {{time}};">3:38 PM</span>
+                  </div>
+                </div>
+                <div style="position: absolute; top: 0; left: -7px; width: 0; height: 0; border-top: 7px solid {{rcvBg}}; border-left: 7px solid transparent;"></div>
+              </div>
+            </div>
+            <!-- Sent: Company name -->
+            <div style="display: flex; justify-content: flex-end; margin-bottom: 2px;">
+              <div style="max-width: 75%;">
+                <div style="background: {{sntBg}}; border-radius: 8px 8px 8px 8px; padding: 6px 8px 3px; box-shadow: 0 1px 0.5px rgba(0,0,0,0.13);">
+                  <p style="margin: 0; font-size: 14.2px; line-height: 1.35; color: {{txt}};">GoldVest International</p>
+                  <div style="display: flex; justify-content: flex-end; align-items: center; gap: 3px; margin-top: 1px;">
+                    <span style="font-size: 11px; color: {{sntTime}};">3:38 PM</span>
+                    <svg width="16" height="11" viewBox="0 0 16 11" fill="#53BDEB"><path d="M11 .7L4.5 7.3 2.2 5 .8 6.3 4.5 10 12.4 2 11 .7z"></path><path d="M15 .7L8.5 7.3l-.7-.7-1.4 1.4 2.1 2 8-8L15 .7z"></path></svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- Received: How did you hear -->
+            <div style="display: flex; margin-bottom: 2px;">
+              <div style="max-width: 85%;">
+                <div style="background: {{rcvBg}}; border-radius: 8px 8px 8px 8px; padding: 6px 8px 3px; box-shadow: 0 1px 0.5px rgba(0,0,0,0.13);">
+                  <p style="margin: 0; font-size: 14.2px; line-height: 1.45; color: {{txt}};">How did you hear about it?</p>
+                  <div style="display: flex; justify-content: flex-end; margin-top: 2px;">
+                    <span style="font-size: 11px; color: {{time}};">3:38 PM</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- Quick reply options -->
+            <div style="display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 4px 4px;">
+              <div style="border: 1px solid {{btnBorder}}; border-radius: 20px; padding: 7px 14px; font-size: 13px; color: {{btnTxt}}; font-weight: 500;">WhatsApp group</div>
+              <div style="border: 1px solid rgba(128,128,128,0.3); border-radius: 20px; padding: 7px 14px; font-size: 13px; color: {{time}};">Social media</div>
+              <div style="border: 1px solid rgba(128,128,128,0.3); border-radius: 20px; padding: 7px 14px; font-size: 13px; color: {{time}};">Friend/family</div>
+              <div style="border: 1px solid rgba(128,128,128,0.3); border-radius: 20px; padding: 7px 14px; font-size: 13px; color: {{time}};">Other</div>
+            </div>
+            <!-- Sent: WhatsApp group (selected) -->
+            <div style="display: flex; justify-content: flex-end; margin-bottom: 2px; margin-top: 4px;">
+              <div style="max-width: 75%;">
+                <div style="background: {{sntBg}}; border-radius: 8px 8px 8px 8px; padding: 6px 8px 3px; box-shadow: 0 1px 0.5px rgba(0,0,0,0.13);">
+                  <p style="margin: 0; font-size: 14.2px; line-height: 1.35; color: {{txt}};">WhatsApp group</p>
+                  <div style="display: flex; justify-content: flex-end; align-items: center; gap: 3px; margin-top: 1px;">
+                    <span style="font-size: 11px; color: {{sntTime}};">3:39 PM</span>
+                    <svg width="16" height="11" viewBox="0 0 16 11" fill="#53BDEB"><path d="M11 .7L4.5 7.3 2.2 5 .8 6.3 4.5 10 12.4 2 11 .7z"></path><path d="M15 .7L8.5 7.3l-.7-.7-1.4 1.4 2.1 2 8-8L15 .7z"></path></svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- Received: Confirmation -->
+            <div style="display: flex; margin-bottom: 2px;">
+              <div style="max-width: 85%;">
+                <div style="background: {{rcvBg}}; border-radius: 8px 8px 8px 8px; padding: 6px 8px 3px; box-shadow: 0 1px 0.5px rgba(0,0,0,0.13);">
+                  <p style="margin: 0; font-size: 14.2px; line-height: 1.45; color: {{txt}};">Thanks! Your report has been submitted. We'll investigate and warn others. 🙏</p>
+                  <p style="margin: 6px 0 0; font-size: 13px; line-height: 1.4; color: {{time}};">Report ID: #QR-2847</p>
+                  <div style="display: flex; justify-content: flex-end; margin-top: 2px;">
+                    <span style="font-size: 11px; color: {{time}};">3:39 PM</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+      </div>
+
+      <!-- Input bar -->
+      <div style="height: 52px; background: {{inputBg}}; display: flex; align-items: center; padding: 0 8px; gap: 8px; flex-shrink: 0;">
+        <!-- Emoji icon -->
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="{{fieldTxt}}" stroke-width="1.5" style="flex-shrink: 0;"><circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><circle cx="9" cy="9" r="1" fill="{{fieldTxt}}" stroke="none"></circle><circle cx="15" cy="9" r="1" fill="{{fieldTxt}}" stroke="none"></circle></svg>
+        <!-- Text field -->
+        <div style="flex: 1; height: 36px; border-radius: 18px; background: {{fieldBg}}; display: flex; align-items: center; padding: 0 14px;">
+          <span style="font-size: 14px; color: {{fieldTxt}};">Type a message</span>
+        </div>
+        <!-- Mic icon -->
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="{{fieldTxt}}" stroke-width="1.5" style="flex-shrink: 0;"><rect x="9" y="2" width="6" height="11" rx="3"></rect><path d="M5 10v1a7 7 0 0014 0v-1"></path><line x1="12" y1="19" x2="12" y2="22"></line><line x1="8" y1="22" x2="16" y2="22"></line></svg>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</center>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":480,"height":940}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { flow: 1, dark: false };
+  }
+  renderVals() {
+    const f = this.state.flow;
+    const d = this.state.dark;
+    const act = '#0891B2';
+    const inBg = d ? '#1F2937' : '#E5E7EB';
+    const inTx = d ? '#9CA3AF' : '#6B7280';
+    return {
+      outerBg: d ? '#0F172A' : '#F3F4F6',
+      tab1Bg: f === 1 ? act : inBg, tab1Color: f === 1 ? '#FFF' : inTx,
+      tab2Bg: f === 2 ? act : inBg, tab2Color: f === 2 ? '#FFF' : inTx,
+      tab3Bg: f === 3 ? act : inBg, tab3Color: f === 3 ? '#FFF' : inTx,
+      tab4Bg: f === 4 ? act : inBg, tab4Color: f === 4 ? '#FFF' : inTx,
+      toggleBg: d ? '#1E293B' : '#E5E7EB',
+      toggleColor: d ? '#FBBF24' : '#6B7280',
+      frameBg: d ? '#374151' : '#1C1C1E',
+      frameShadow: d ? '0 20px 60px -10px rgba(0,0,0,0.5)' : '0 20px 60px -10px rgba(0,0,0,0.25)',
+      headerBg: d ? '#202C33' : '#075E54',
+      chatBg: d ? '#0B141A' : '#ECE5DD',
+      rcvBg: d ? '#202C33' : '#FFFFFF',
+      sntBg: d ? '#005C4B' : '#D9FDD3',
+      txt: d ? '#E9EDEF' : '#111B21',
+      time: d ? '#8696A0' : '#667781',
+      sntTime: d ? '#7DA89B' : '#667781',
+      inputBg: d ? '#202C33' : '#F0F2F5',
+      fieldBg: d ? '#2A3942' : '#FFFFFF',
+      fieldTxt: d ? '#8696A0' : '#667781',
+      sysBg: d ? 'rgba(32,44,51,0.95)' : 'rgba(255,255,255,0.95)',
+      sysTxt: d ? '#8696A0' : '#667781',
+      btnBorder: d ? '#00A884' : '#25D366',
+      btnTxt: d ? '#00A884' : '#25D366',
+      isFlow1: f === 1, isFlow2: f === 2, isFlow3: f === 3, isFlow4: f === 4,
+      isSun: !d, isMoon: d,
+      goFlow1: () => this.setState({ flow: 1 }),
+      goFlow2: () => this.setState({ flow: 2 }),
+      goFlow3: () => this.setState({ flow: 3 }),
+      goFlow4: () => this.setState({ flow: 4 }),
+      toggleDark: () => this.setState({ dark: !d }),
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -75,7 +75,7 @@ export async function routeMessage(ctx, rawText) {
   }
 
   /* --- Anything else is treated as something to check ------------- */
-  // "check menzgold" / "verify GhanaCoin" -> strip the verb, check the rest
+  // "check menzgold" / "verify Expert Option" -> strip the verb, check the rest
   const stripped = text.replace(/^(check|verify|scan|is)\s+/i, "").trim();
   return runCheck(fullCtx, stripped || text);
 }

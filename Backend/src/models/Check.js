@@ -8,7 +8,8 @@ const checkSchema = new mongoose.Schema(
     result: {
       riskScore: Number,
       riskLevel: String,
-      secStatus: String,
+      status: String,
+      category: String,
       redFlags: [String],
     },
     channel: { type: String, default: "whatsapp" },

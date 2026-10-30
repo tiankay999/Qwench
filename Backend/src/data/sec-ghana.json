@@ -1,0 +1,163 @@
+{
+  "_about": "SEC Ghana / EOCO entity lists used by the Qwench risk engine. Entity names are recorded as supplied by the project owner from SEC Ghana and EOCO public notices. Aliases are alternate spellings people are likely to type or search for.",
+  "_lastUpdated": "2026-10-30",
+  "_verify": "Always confirm an entity's current standing against the official register and public notices at sec.gov.gh -- licences get granted, suspended and revoked over time.",
+
+  "blacklisted": [
+    { "name": "Afri Hub", "aliases": ["afrihub", "afri-hub"], "category": "investment", "source": "SEC Ghana", "dateAdded": "2026-07-01" },
+    { "name": "BG Wealth", "aliases": ["bgwealth", "bg wealth investment"], "category": "investment", "source": "SEC Ghana", "dateAdded": "2026-07-01" },
+    { "name": "BP Investment", "aliases": ["bp invest", "bpinvestment"], "category": "investment", "source": "SEC Ghana", "dateAdded": "2026-07-01" },
+    { "name": "Creative Walker Promotion Company (CWPC)", "aliases": ["cwpc", "creative walker", "creative walker promotion"], "category": "investment", "source": "SEC Ghana", "dateAdded": "2026-07-01" },
+    { "name": "Dallmayr", "aliases": ["dallmayr ghana", "dallmayr investment"], "category": "investment", "source": "SEC Ghana", "dateAdded": "2026-07-01" },
+    { "name": "Expert Option", "aliases": ["expert option", "expectoption", "expertoption", "expect option"], "category": "forex", "source": "SEC Ghana", "dateAdded": "2026-07-01" },
+    { "name": "GAIP Securities Learning & Exchange Group", "aliases": ["gaip securities", "gaip", "gaip exchange group"], "category": "investment", "source": "SEC Ghana", "dateAdded": "2026-07-01" },
+    { "name": "Ghana Vest", "aliases": ["ghanavest", "ghana vest investment"], "category": "investment", "source": "SEC Ghana", "dateAdded": "2026-07-01" },
+    { "name": "Harvest Fund", "aliases": ["harvestfund", "harvest fund ghana"], "category": "investment", "source": "SEC Ghana", "dateAdded": "2026-07-01" },
+    { "name": "Infarms / Secure Farm", "aliases": ["infarms", "secure farm", "securefarm", "in farms"], "category": "investment", "source": "SEC Ghana", "dateAdded": "2026-07-01" },
+    { "name": "Kukafor Platform", "aliases": ["kukafor", "kuka for"], "category": "investment", "source": "SEC Ghana", "dateAdded": "2026-07-01" },
+    { "name": "Mazzuma", "aliases": ["mazzuma ghana", "mazuma"], "category": "crypto", "source": "SEC Ghana", "dateAdded": "2026-07-01" },
+    { "name": "Medisyne Trade", "aliases": ["medisyne", "medisyne trading"], "category": "investment", "source": "SEC Ghana", "dateAdded": "2026-07-01" },
+    { "name": "NIO Platform", "aliases": ["nio", "nio invest"], "category": "investment", "source": "SEC Ghana", "dateAdded": "2026-07-01" },
+    { "name": "Profit Rise Invest", "aliases": ["profit rise", "profitrise", "profitriseinvest"], "category": "investment", "source": "SEC Ghana", "dateAdded": "2026-07-01" },
+    { "name": "Quant Vest Stock Exchange (QVSE)", "aliases": ["qvse", "quant vest", "quantvest", "quant vest stock exchange"], "category": "investment", "source": "SEC Ghana", "dateAdded": "2026-07-01" },
+    { "name": "QVES", "aliases": ["qves"], "category": "investment", "source": "SEC Ghana", "dateAdded": "2026-07-01" },
+    { "name": "QX Broker / Qumatix", "aliases": ["qx broker", "qxbroker", "qumatix", "qx"], "category": "forex", "source": "SEC Ghana", "dateAdded": "2026-07-01" },
+    { "name": "Smart Gain", "aliases": ["smartgain", "smart gain investment"], "category": "investment", "source": "SEC Ghana", "dateAdded": "2026-07-01" },
+    { "name": "Yepbit Trading", "aliases": ["yepbit", "yep bit"], "category": "crypto", "source": "SEC Ghana", "dateAdded": "2026-07-01" },
+    { "name": "ZEC ZEC FX", "aliases": ["zeczec fx", "zec zec", "zeczecfx", "zeczec"], "category": "forex", "source": "SEC Ghana", "dateAdded": "2026-07-01" },
+    { "name": "Bonchat", "aliases": ["bonchat ghana", "bon chat"], "category": "crypto", "source": "SEC Ghana", "dateAdded": "2026-07-01" },
+    { "name": "Ultima Cryptocurrency Group", "aliases": ["ultima", "ultima crypto", "ultima cryptocurrency"], "category": "crypto", "source": "SEC Ghana", "dateAdded": "2026-07-01" },
+
+    { "name": "PatronPay Ghana / PetronPay Ghana", "aliases": ["patronpay", "petronpay", "patron pay", "petron pay"], "category": "investment", "source": "SEC Ghana & EOCO" },
+    { "name": "Cedi Network Ghana", "aliases": ["cedi network", "cedinetwork", "cedi net"], "category": "ponzi", "source": "SEC Ghana & EOCO" },
+    { "name": "Bitcash Investment", "aliases": ["bitcash", "bit cash"], "category": "crypto", "source": "SEC Ghana & EOCO" },
+    { "name": "Solmax Group", "aliases": ["solmax", "solmax global", "sol max"], "category": "ponzi", "source": "SEC Ghana & EOCO" },
+    { "name": "Freedom Synergy", "aliases": ["freedom synergy investment", "freedomsynergy"], "category": "investment", "source": "SEC Ghana & EOCO" },
+    { "name": "FxKash Investment", "aliases": ["fxkash", "fx kash", "fxcash"], "category": "forex", "source": "SEC Ghana & EOCO" },
+    { "name": "Binomo Investment", "aliases": ["binomo"], "category": "forex", "source": "SEC Ghana & EOCO" },
+    { "name": "Hi Pay", "aliases": ["hipay", "hi-pay"], "category": "investment", "source": "SEC Ghana & EOCO" },
+    { "name": "Quick Earn", "aliases": ["quickearn", "quick earn ghana"], "category": "investment", "source": "SEC Ghana & EOCO" },
+    { "name": "Lite Earn", "aliases": ["liteearn", "lite earn ghana"], "category": "investment", "source": "SEC Ghana & EOCO" },
+    { "name": "Snap Finance", "aliases": ["snapfinance", "snap finance ghana"], "category": "investment", "source": "SEC Ghana & EOCO" },
+    { "name": "Faucet Wealth Investment", "aliases": ["faucet wealth", "faucetwealth", "faucet"], "category": "crypto", "source": "SEC Ghana & EOCO" },
+    { "name": "Opay Investment", "aliases": ["opay", "o pay"], "category": "investment", "source": "SEC Ghana & EOCO" },
+    { "name": "Payme Financial Services", "aliases": ["payme", "pay me financial"], "category": "investment", "source": "SEC Ghana & EOCO" },
+    { "name": "Passive Income", "aliases": ["passive income ghana", "passiveincome"], "category": "investment", "source": "SEC Ghana & EOCO" },
+    { "name": "Yvonne Hanson Deals", "aliases": ["yvonne hanson", "yvonnehanson"], "category": "investment", "source": "SEC Ghana & EOCO" },
+    { "name": "Alpha Pay", "aliases": ["alphapay", "alpha pay ghana"], "category": "investment", "source": "SEC Ghana & EOCO" },
+
+    {
+      "name": "Menzgold Ghana Limited",
+      "aliases": ["menzgold", "menz gold", "menzbanc", "menzgold ghana"],
+      "category": "ponzi",
+      "source": "SEC Ghana & EOCO",
+      "dateAdded": "2018-09-01",
+      "redFlags": [
+        "Ordered by SEC Ghana to halt its gold-vault deposit product (2018)",
+        "Promised fixed monthly dividends of 7-10% on gold deposits",
+        "Took public deposits without a licence to do so",
+        "Thousands of customers still unpaid after the collapse"
+      ]
+    },
+    {
+      "name": "DKM Diamond Microfinance",
+      "aliases": ["dkm", "dkm diamond", "dkm microfinance"],
+      "category": "ponzi",
+      "source": "SEC Ghana & EOCO",
+      "dateAdded": "2015-10-01",
+      "redFlags": [
+        "Licence revoked by the Bank of Ghana after it collapsed (2015)",
+        "Promised 50% returns within weeks on fixed deposits",
+        "Paid earlier depositors using new depositor funds",
+        "No underlying business able to generate the promised returns"
+      ]
+    },
+    {
+      "name": "God is Love Fun Club",
+      "aliases": ["god is love", "god is love fun club", "gilfc"],
+      "category": "ponzi",
+      "source": "SEC Ghana & EOCO",
+      "redFlags": [
+        "Shut down by regulators as an unlicensed deposit-taking scheme",
+        "Recruitment-based payouts with no real investment activity",
+        "Promised returns far above any licensed product",
+        "Operated through church and community networks"
+      ]
+    },
+    {
+      "name": "Hus-Pet",
+      "aliases": ["huspet", "hus pet", "hus-pet investment"],
+      "category": "ponzi",
+      "source": "SEC Ghana & EOCO",
+      "redFlags": [
+        "Unlicensed deposit-taking scheme flagged by regulators",
+        "Promised returns no licensed Ghanaian product could match",
+        "Collapsed leaving depositors unpaid"
+      ]
+    },
+    {
+      "name": "Gem Gold",
+      "aliases": ["gemgold", "gem gold ghana"],
+      "category": "ponzi",
+      "source": "SEC Ghana & EOCO",
+      "redFlags": [
+        "Unlicensed gold-trading investment scheme",
+        "Promised guaranteed returns on gold deposits",
+        "Followed the same deposit model that collapsed elsewhere"
+      ]
+    },
+    {
+      "name": "Brew Marketing Consult",
+      "aliases": ["brew marketing", "brew marketing consult ghana"],
+      "category": "ponzi",
+      "source": "SEC Ghana & EOCO",
+      "redFlags": [
+        "Operated an unlicensed investment scheme",
+        "Recruited depositors with promises of outsized returns",
+        "Unable to repay depositors on maturity"
+      ]
+    }
+  ],
+
+  "licensed": [
+    { "name": "Databank Financial Services", "aliases": ["databank", "databank financial", "databank asset management"], "licenseType": "Fund Manager", "source": "SEC Ghana" },
+    { "name": "Black Star Advisors", "aliases": ["black star advisors", "blackstar advisors", "black star"], "licenseType": "Fund Manager", "source": "SEC Ghana" },
+    { "name": "EDC Investments", "aliases": ["edc investments", "edc", "ecobank development corporation"], "licenseType": "Fund Manager", "source": "SEC Ghana" },
+    { "name": "Gold Coast Fund Management", "aliases": ["gold coast fund management", "gold coast fund", "goldcoast fund management"], "licenseType": "Fund Manager", "source": "SEC Ghana" },
+    { "name": "IC Securities", "aliases": ["ic securities", "ic asset managers", "ic ghana"], "licenseType": "Broker-Dealer", "source": "SEC Ghana" },
+    { "name": "Fidelity Securities", "aliases": ["fidelity securities", "fidelity securities ghana"], "licenseType": "Broker-Dealer", "source": "SEC Ghana" },
+    { "name": "SAS Finance Group", "aliases": ["sas finance", "sas finance group", "sas"], "licenseType": "Fund Manager", "source": "SEC Ghana" },
+    { "name": "CDH Financial Holdings", "aliases": ["cdh", "cdh financial", "cdh financial holdings"], "licenseType": "Fund Manager", "source": "SEC Ghana" },
+    { "name": "Petra Trust Company", "aliases": ["petra trust", "petra trust company", "petra"], "licenseType": "Fund Manager", "source": "SEC Ghana" },
+    { "name": "First Fund", "aliases": ["first fund", "firstfund"], "licenseType": "Fund Manager", "source": "SEC Ghana" },
+    { "name": "HFC Investments", "aliases": ["hfc investments", "hfc", "hfc investment services"], "licenseType": "Fund Manager", "source": "SEC Ghana" },
+    { "name": "Strategic African Securities", "aliases": ["strategic african securities", "strategic african"], "licenseType": "Broker-Dealer", "source": "SEC Ghana" },
+    { "name": "Merban Stockbrokers", "aliases": ["merban stockbrokers", "merban", "merban stockbrokers ghana"], "licenseType": "Broker-Dealer", "source": "SEC Ghana" },
+    { "name": "CAL Brokers", "aliases": ["cal brokers", "calbank brokers", "cal brokers ghana"], "licenseType": "Broker-Dealer", "source": "SEC Ghana" },
+    { "name": "Stanbic Investment Management Services", "aliases": ["stanbic investment management", "sims", "stanbic ims"], "licenseType": "Fund Manager", "source": "SEC Ghana" }
+  ],
+
+  "scamKeywords": [
+    "double your money",
+    "guaranteed returns",
+    "guaranteed profit",
+    "risk free",
+    "risk-free",
+    "no risk",
+    "100% safe",
+    "quick money",
+    "forex signals",
+    "money doubler",
+    "doubler",
+    "daily roi",
+    "weekly roi",
+    "monthly roi",
+    "referral bonus",
+    "sure odds",
+    "investment package",
+    "sign up bonus",
+    "withdraw anytime"
+  ],
+  "suspiciousTlds": [".tk", ".ml", ".ga", ".cf", ".gq", ".top", ".xyz", ".click", ".link"],
+  "linkShorteners": ["bit.ly", "tinyurl.com", "cutt.ly", "t.me", "wa.me", "rb.gy", "is.gd", "shorturl.at"]
+}

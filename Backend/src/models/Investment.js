@@ -1,27 +1,28 @@
 import mongoose from "mongoose";
 
+export const STATUSES = ["licensed", "blacklisted", "revoked", "unknown"];
+export const CATEGORIES = ["crypto", "forex", "ponzi", "investment", "real-estate", "other"];
+
 const investmentSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
-    // lowercased name used for lookups
+    // lowercased, suffix-stripped name used for lookups
     slug: { type: String, required: true, unique: true, index: true },
-    aliases: { type: [String], default: [] },
-    type: {
-      type: String,
-      enum: ["crypto", "forex", "ponzi", "real-estate", "other"],
-      default: "other",
-    },
+    // alternate spellings people might search for
+    aliases: { type: [String], default: [], index: true },
+
+    status: { type: String, enum: STATUSES, default: "unknown", index: true },
+    // "SEC Ghana" | "SEC Ghana & EOCO" | "Qwench risk engine"
+    source: { type: String, default: "" },
+    // "Fund Manager" | "Broker-Dealer" | "Investment Advisor" -- licensed entities only
+    licenseType: { type: String, default: "" },
+    category: { type: String, enum: CATEGORIES, default: "other" },
+
     riskScore: { type: Number, min: 0, max: 10, default: 5 },
-    secStatus: {
-      type: String,
-      enum: ["licensed", "not-licensed", "warned", "unknown"],
-      default: "unknown",
-    },
-    secLicenseNumber: { type: String, default: "" },
-    secNote: { type: String, default: "" },
     redFlags: { type: [String], default: [] },
-    yearStarted: { type: Number, default: null },
-    website: { type: String, default: "" },
+
+    // when the entity was flagged / added to the register
+    dateAdded: { type: Date, default: Date.now },
     lastChecked: { type: Date, default: Date.now },
   },
   { timestamps: true }

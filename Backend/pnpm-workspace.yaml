@@ -1,2 +1,4 @@
 allowBuilds:
-  bcrypt: set this to true or false
+  # Qwench does not use bcrypt (phone numbers are hashed with node:crypto sha256),
+  # so its native build is skipped to keep installs clean.
+  bcrypt: false

@@ -6,7 +6,7 @@ const reportSchema = new mongoose.Schema(
     schemeSlug: { type: String, required: true, index: true },
     schemeType: {
       type: String,
-      enum: ["crypto", "forex", "ponzi", "real-estate", "other"],
+      enum: ["crypto", "forex", "ponzi", "investment", "real-estate", "other"],
       default: "other",
     },
     source: {

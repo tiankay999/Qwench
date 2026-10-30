@@ -130,7 +130,7 @@ export function formatRiskReport(r) {
   lines.push("");
   lines.push(`💡 *Recommendation:* ${r.recommendation}`);
   lines.push("");
-  lines.push(`🔗 Full report: ${WEB_APP_URL}/report/${encodeURIComponent(r.slug)}`);
+  lines.push(`🔗 Full report: ${WEB_APP_URL}/report/${urlSlug(r.slug)}`);
   lines.push(`📢 Report this: Type "report"`);
 
   return lines.join("\n");
@@ -149,6 +149,11 @@ export function formatTrending(items) {
   lines.push("");
   lines.push(`Send any name to run a full risk check on it.`);
   return lines.join("\n");
+}
+
+/** "expert option" -> "expert-option", so the link is clickable in WhatsApp. */
+function urlSlug(slug) {
+  return encodeURIComponent(String(slug || "").trim().replace(/\s+/g, "-"));
 }
 
 function formatNumber(n) {

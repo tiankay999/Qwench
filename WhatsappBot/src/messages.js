@@ -73,6 +73,7 @@ export const API_ERROR = `⚠️ I couldn't reach the Qwench servers just now. P
  * ------------------------------------------------------------------ */
 
 const STATUS_ICON = {
+  authority: "🏛️",
   licensed: "✅",
   sandbox: "🧪",
   blacklisted: "❌",
@@ -340,4 +341,34 @@ export function formatEvidenceSummary(counts) {
   if (counts.texts) parts.push(`• ${counts.texts} message${counts.texts === 1 ? "" : "s"} reviewed`);
   if (!parts.length) return "";
   return ["📊 *Evidence Analyzed:*", ...parts].join("\n");
+}
+
+/**
+ * A regulator or government body is not an investment, so it gets an
+ * informational card rather than a risk score. Showing SEC Ghana a "risk
+ * verdict" would undercut the advice Qwench gives in every other message.
+ */
+export function formatAuthorityCard(r) {
+  const info = r.authorityInfo || {};
+  const lines = [];
+
+  lines.push("🏛️ *Official Body — Not an Investment*");
+  lines.push(`📌 *${r.name}*`);
+  lines.push("");
+  if (info.role) lines.push(`📋 *Role:* ${info.role}`);
+  if (info.website) lines.push(`🌐 *Official site:* ${info.website}`);
+  if (info.contact) lines.push(`☎️ *Contact:* ${info.contact}`);
+
+  lines.push("");
+  lines.push(`${r.summary || `${r.name} is a Ghanaian authority, not a scheme that takes your money.`}`);
+
+  lines.push("");
+  lines.push("⚠️ *Watch out:* if anyone asks you to pay this body through mobile money, or claims to invest on its behalf, that is a scam. These bodies do not collect investments from the public.");
+
+  lines.push("");
+  lines.push("Send me the name of the *company or scheme* you want checked instead.");
+  lines.push("");
+  lines.push("☎️ SEC Ghana: 0800100065");
+
+  return lines.join("\n");
 }

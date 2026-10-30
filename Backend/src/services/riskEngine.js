@@ -563,11 +563,18 @@ function canRefineWithEvidence(result, evidence) {
 /** Shapes either source into the single contract the API and bot consume. */
 function normalize({ chosen, rules, evidence, analyzedBy, ai }) {
   const sec = chosen.secStatus || {};
-  const status = sec.status || evidence.secData.status;
+
+  // Our register is a fact, not something the model gets a vote on. When an
+  // entity is in it, that status wins -- otherwise the model could relabel a
+  // regulator as "licensed" or, worse, a blacklisted scheme as legitimate.
+  const status = evidence.secData.found ? evidence.secData.status : sec.status || evidence.secData.status;
   const color = chosen.riskColor || "yellow";
 
   return {
-    name: chosen.entityName || rules.entityName,
+    // The registered name wins over whatever the model called it: this is a
+    // regulatory tool, and a cached or paraphrased name must not replace the
+    // name the entity is actually on the register under.
+    name: evidence.secData.found ? evidence.secData.name : chosen.entityName || rules.entityName,
     query: evidence.query,
     slug: evidence.slug,
     queryKind: evidence.queryKind,
@@ -581,7 +588,14 @@ function normalize({ chosen, rules, evidence, analyzedBy, ai }) {
     summary: chosen.summary || rules.summary,
 
     status,
-    statusLabel: sec.detail || rules.secStatus.detail,
+    // Same reasoning for an authority's label: keep ours, which says plainly
+    // that it is a regulator rather than something you can invest in.
+    statusLabel: status === "authority" ? rules.secStatus.detail : sec.detail || rules.secStatus.detail,
+    isAuthority: status === "authority",
+    authorityInfo:
+      status === "authority"
+        ? { role: evidence.secData.role, website: evidence.secData.website, contact: evidence.secData.contact }
+        : null,
     citation: sec.citation || rules.secStatus.citation,
     source: evidence.secData.source || "",
     licenseType: evidence.secData.licenseType || "",

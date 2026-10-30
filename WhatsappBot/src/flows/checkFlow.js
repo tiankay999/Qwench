@@ -1,5 +1,5 @@
 import { checkInvestmentWithContext } from "../api.js";
-import { API_ERROR, CHECKING, formatEvidenceSummary, formatRiskReport } from "../messages.js";
+import { API_ERROR, CHECKING, formatAuthorityCard, formatEvidenceSummary, formatRiskReport } from "../messages.js";
 import { resetSession } from "../sessions.js";
 
 /** Pull http(s) links out of a message. */
@@ -34,6 +34,13 @@ export async function runCheck(ctx, query, opts = {}) {
 
   const engineTag = result.analyzedBy === "ai" ? "🤖 AI (LLM)" : "📋 Rule-based";
   console.log(`[check] ${query} -> ${result.riskScore}/10 ${result.riskLevel} (${engineTag})`);
+
+  // Regulators and government bodies are not investments, so they get an
+  // information card instead of a risk verdict.
+  if (result.isAuthority) {
+    console.log(`[check] ${query} is an official body -- sending the authority card`);
+    return send(formatAuthorityCard(result));
+  }
 
   // Nothing known about this entity and the score is a shrug -- ask the user
   // for proof instead of handing them a vague MEDIUM.

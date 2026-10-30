@@ -628,7 +628,18 @@ export async function analyzeWithAI(evidence, { callProvider } = {}) {
     if (cached?.output?.riskScore != null) {
       const ageH = ((Date.now() - new Date(cached.createdAt).getTime()) / 3_600_000).toFixed(1);
       console.log(`[ai] cache hit for "${slug}" (${ageH}h old) -- skipping ${cached.provider} call`);
-      return { ...cached.output, fromCache: true, provider: cached.provider, model: cached.model };
+
+      // Re-validate against the CURRENT evidence rather than trusting the stored
+      // verdict. A cached answer predates any later correction -- a register
+      // update or a new safety rule -- and the rules must hold no matter where
+      // the verdict came from.
+      const { assessment, corrections } = validateAssessment(cached.output, evidence);
+      if (corrections.length) {
+        console.warn(`[ai] cached verdict for "${slug}" no longer passes validation:`);
+        corrections.forEach((c) => console.warn(`[ai]   ${c}`));
+      }
+
+      return { ...assessment, fromCache: true, provider: cached.provider, model: cached.model, corrections };
     }
   } else {
     console.log(`[ai] evidence supplied for "${baseSlug}" -- bypassing cache`);

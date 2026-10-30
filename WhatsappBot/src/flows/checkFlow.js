@@ -14,7 +14,8 @@ export async function runCheck(ctx, query) {
 
   try {
     const result = await checkInvestment(query);
-    console.log(`[check] ${query} -> ${result.riskScore}/10 ${result.riskLevel}`);
+    const engineTag = result.analyzedBy === "ai" ? "🤖 AI (LLM)" : "📋 Rule-based";
+    console.log(`[check] ${query} -> ${result.riskScore}/10 ${result.riskLevel} (${engineTag})`);
     await send(formatRiskReport(result));
   } catch (err) {
     console.error(`[check] failed for "${query}":`, err.response?.data?.error || err.message);

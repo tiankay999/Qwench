@@ -36,6 +36,13 @@ export async function pingBackend() {
   try {
     const { data } = await client.get("/health", { timeout: 5000 });
     console.log(`[api] backend is up (${data.service})`);
+    if (data.llm) {
+      if (data.llm.connected) {
+        console.log(`[ai]  🤖 LLM connected: ${data.llm.provider} (${data.llm.model}) [${data.llm.latencyMs || 0}ms]`);
+      } else {
+        console.log(`[ai]  ⚠️  LLM not connected: ${data.llm.error || "rule-based fallback active"}`);
+      }
+    }
     return true;
   } catch (err) {
     console.warn(`[api] ⚠️  backend not reachable at ${BASE_URL} -- start it with "pnpm dev" in Backend/`);

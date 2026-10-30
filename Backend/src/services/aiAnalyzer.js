@@ -92,7 +92,7 @@ RULES:
 const DEFAULT_PROVIDER = "gemini";
 
 const DEFAULT_MODELS = {
-  gemini: "gemini-2.0-flash",
+  gemini: "gemini-3.8-flash",
   groq: "llama-3.3-70b-versatile",
   openai: "gpt-4o-mini",
 };
@@ -143,9 +143,95 @@ function resolveModel(provider) {
   return configured;
 }
 
+let cachedLlmStatus = null;
+
+/**
+ * Quick probe at startup to verify if the configured LLM is reachable and credentials are valid.
+ * Returns { ok: boolean, provider: string, model: string, latencyMs?: number, error?: string, reason?: string }
+ */
+export async function verifyLlmConnection() {
+  const cfg = config();
+
+  if (!cfg.enabled) {
+    const status = {
+      ok: false,
+      provider: cfg.provider,
+      model: cfg.model,
+      reason: `No API key set for provider "${cfg.provider}" in Backend/.env`,
+    };
+    cachedLlmStatus = status;
+    return status;
+  }
+
+  const timeoutMs = 8000;
+  const started = Date.now();
+
+  try {
+    if (cfg.provider === "gemini") {
+      const { GoogleGenerativeAI } = await import("@google/generative-ai");
+      const client = new GoogleGenerativeAI(cfg.key);
+      const genModel = client.getGenerativeModel({ model: cfg.model }, { timeout: timeoutMs });
+      const res = await genModel.generateContent("Reply with OK");
+      const text = res.response?.text();
+      if (!text) throw new Error("Gemini returned an empty response");
+    } else if (cfg.provider === "groq") {
+      const { default: Groq } = await import("groq-sdk");
+      const client = new Groq({ apiKey: cfg.key, timeout: timeoutMs });
+      await client.chat.completions.create({
+        model: cfg.model,
+        max_tokens: 5,
+        messages: [{ role: "user", content: "ping" }],
+      });
+    } else if (cfg.provider === "openai") {
+      const { default: OpenAI } = await import("openai");
+      const client = new OpenAI({ apiKey: cfg.key, timeout: timeoutMs });
+      await client.chat.completions.create({
+        model: cfg.model,
+        max_tokens: 5,
+        messages: [{ role: "user", content: "ping" }],
+      });
+    } else {
+      throw new Error(`Unsupported AI_PROVIDER "${cfg.provider}"`);
+    }
+
+    const latencyMs = Date.now() - started;
+    const status = { ok: true, provider: cfg.provider, model: cfg.model, latencyMs };
+    cachedLlmStatus = status;
+    return status;
+  } catch (err) {
+    let errorMsg = err.message || String(err);
+    if (errorMsg.includes("is not found") || errorMsg.includes("404")) {
+      errorMsg = `Model "${cfg.model}" is not found or deprecated for ${cfg.provider}. Check AI_MODEL in Backend/.env`;
+    } else if (errorMsg.includes("API key not valid")) {
+      errorMsg = `Invalid API key for ${cfg.provider}. Please check your ${cfg.provider.toUpperCase()}_API_KEY in Backend/.env`;
+    } else if (errorMsg.includes("aborted") || errorMsg.includes("timeout")) {
+      errorMsg = `Connection to ${cfg.provider} timed out. Check your network or verify your API key in Backend/.env`;
+    }
+    const status = {
+      ok: false,
+      provider: cfg.provider,
+      model: cfg.model,
+      error: errorMsg,
+      rawError: err.message,
+    };
+    cachedLlmStatus = status;
+    return status;
+  }
+}
+
+export async function checkLlmStatus(forceRefresh = false) {
+  if (cachedLlmStatus && !forceRefresh) return cachedLlmStatus;
+  return verifyLlmConnection();
+}
+
 export function aiStatus() {
   const c = config();
-  return { provider: c.provider, model: c.model, enabled: c.enabled };
+  return {
+    provider: c.provider,
+    model: c.model,
+    enabled: c.enabled,
+    connected: cachedLlmStatus ? cachedLlmStatus.ok : null,
+  };
 }
 
 /* ------------------------------------------------------------------ *

@@ -92,7 +92,7 @@ RULES:
 const DEFAULT_PROVIDER = "gemini";
 
 const DEFAULT_MODELS = {
-  gemini: "gemini-3.8-flash",
+  gemini: "gemini-3.5-flash-lite",
   groq: "llama-3.3-70b-versatile",
   openai: "gpt-4o-mini",
 };

@@ -137,6 +137,21 @@
     { "name": "Stanbic Investment Management Services", "aliases": ["stanbic investment management", "sims", "stanbic ims"], "licenseType": "Fund Manager", "source": "SEC Ghana" }
   ],
 
+  "_sandboxNote": "Virtual Asset Service Providers with PROVISIONAL approval under the SEC Ghana sandbox (Virtual Asset Service Providers Act, 2025 / Act 1154). Provisional approval is NOT a full licence and must never be presented as one.",
+  "sandbox": [
+    { "name": "AFRICOIN", "aliases": ["africoin"] },
+    { "name": "BLU PENGUIN", "aliases": ["blu penguin", "blupenguin", "blue penguin"] },
+    { "name": "GOLDBOD", "aliases": ["goldbod", "gold bod"] },
+    { "name": "HANYPAY", "aliases": ["hanypay", "hany pay"] },
+    { "name": "HYRO EXCHANGE GH LTD", "aliases": ["hyro exchange", "hyro", "hyro exchange gh"] },
+    { "name": "HSB GLOBAL", "aliases": ["hsb global", "hsbglobal", "hsb"] },
+    { "name": "KOINKOIN", "aliases": ["koinkoin", "koin koin"] },
+    { "name": "WHITEBITS", "aliases": ["whitebits", "white bits"] },
+    { "name": "VAULTA", "aliases": ["vaulta"] },
+    { "name": "XCHAIN", "aliases": ["xchain", "x chain"] },
+    { "name": "BSYSTEM LTD", "aliases": ["bsystem", "b system", "bsystem ltd"] }
+  ],
+
   "scamKeywords": [
     "double your money",
     "guaranteed returns",

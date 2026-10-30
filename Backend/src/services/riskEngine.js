@@ -1,8 +1,12 @@
 import Investment from "../models/Investment.js";
 import Report from "../models/Report.js";
+import { analyzeWithAI, verdictForScore } from "./aiAnalyzer.js";
 import { UNAVAILABLE, lookupToken } from "./coingecko.js";
 import { checkContract, isContractAddress, scoreContract } from "./goplus.js";
 import { findScamKeywords, lookupSecEntity, secData, slugify } from "./secData.js";
+
+const EMOJI = { green: "🟢", yellow: "🟡", orange: "🟠", red: "🔴" };
+const LEVEL_TEXT = { LOW: "LOW RISK", MEDIUM: "MEDIUM RISK", HIGH: "HIGH RISK", CRITICAL: "CRITICAL RISK" };
 
 /* ------------------------------------------------------------------ *
  * Input shape detection
@@ -11,9 +15,7 @@ import { findScamKeywords, lookupSecEntity, secData, slugify } from "./secData.j
 function parseQuery(raw) {
   const query = String(raw || "").trim();
 
-  if (isContractAddress(query)) {
-    return { query, kind: "contract", subject: query };
-  }
+  if (isContractAddress(query)) return { query, kind: "contract", subject: query };
 
   const urlMatch = query.match(/(https?:\/\/[^\s]+|(?:www\.)[^\s]+|[a-z0-9-]+\.[a-z]{2,}(?:\/[^\s]*)?)/i);
   if (urlMatch) {
@@ -21,7 +23,6 @@ function parseQuery(raw) {
     return { query, kind: "link", host, subject: host.split(".")[0] };
   }
 
-  // Short all-caps strings look like tickers: BTC, SOL, SAFEMOON
   const looksLikeTicker = /^[A-Za-z0-9]{2,12}$/.test(query) && query === query.toUpperCase();
   return { query, kind: looksLikeTicker ? "token" : "name", subject: query };
 }
@@ -33,117 +34,148 @@ function mentionsCrypto(text) {
 }
 
 /* ------------------------------------------------------------------ *
- * Bands and copy
+ * Step 1 -- gather raw data from every source
  * ------------------------------------------------------------------ */
 
-function levelFor(score) {
-  if (score <= 3) return { riskLevel: "LOW RISK", color: "green", emoji: "🟢" };
-  if (score <= 6) return { riskLevel: "MEDIUM RISK", color: "amber", emoji: "🟡" };
-  return { riskLevel: "HIGH RISK", color: "red", emoji: "🔴" };
-}
+/**
+ * Collects the raw evidence the AI analyzer reasons over. No scoring happens
+ * here: this is purely "what do all our sources say about this query".
+ */
+export async function gatherEvidence(rawQuery, additionalContext = "") {
+  const parsed = parseQuery(rawQuery);
+  const slug = slugify(parsed.subject);
+  console.log(`[risk] gathering evidence for "${parsed.query}" (detected as ${parsed.kind})`);
 
-function recommendationFor({ level, name, status, isCrypto, honeypot }) {
-  if (honeypot) {
-    return `Do not buy this token. The contract is built so you can buy but cannot sell -- your money would be unrecoverable.`;
+  /* --- SEC Ghana: our MongoDB register ---------------------------- */
+  const known = await Investment.findOne({
+    $or: [{ slug }, { aliases: slug }, { name: new RegExp(`^${escapeRegex(parsed.subject)}$`, "i") }],
+  }).lean();
+
+  const fileEntity = lookupSecEntity(parsed.subject);
+
+  // Only curated records are authoritative. Records the engine cached itself
+  // carry status "unknown" and must not suppress the live lookups.
+  const curated = fileEntity || (known && known.status !== "unknown" ? known : null);
+  if (curated) console.log(`[risk] matched SEC register: ${curated.name} (${curated.status})`);
+
+  const secLookup = {
+    found: Boolean(curated),
+    name: curated?.name || null,
+    // "unregistered" is the vocabulary the AI prompt uses for "not on any list"
+    status: curated?.status || "unregistered",
+    source: curated?.source || null,
+    licenseType: curated?.licenseType || null,
+    category: curated?.category || null,
+    dateAdded: curated?.dateAdded || fileEntity?.dateAdded || null,
+    aliases: curated?.aliases || [],
+    curatedRedFlags: curated?.redFlags || [],
+    note:
+      curated?.status === "sandbox"
+        ? "Provisional approval only under the SEC Ghana virtual asset sandbox (Act 1154). This is NOT a full licence."
+        : curated?.status === "unregistered" || !curated
+          ? "Not found on the SEC Ghana licensed list, sandbox list, or public warning lists."
+          : null,
+  };
+
+  /* --- GoPlus: contract security (0x addresses only) -------------- */
+  const isContract = parsed.kind === "contract";
+  const goPlusData = isContract ? await checkContract(parsed.subject) : null;
+
+  /* --- CoinGecko: market data ------------------------------------- */
+  const curatedCategory = curated?.category || null;
+  const hintsCrypto =
+    isContract ||
+    curatedCategory === "crypto" ||
+    (!curatedCategory && (parsed.kind === "token" || mentionsCrypto(parsed.query)));
+
+  const flagged = curated?.status === "blacklisted";
+  const tokenSubject = goPlusData?.tokenSymbol || parsed.subject;
+  const shouldLookupToken =
+    !flagged && parsed.kind !== "link" && (hintsCrypto || !curated) && (!isContract || Boolean(goPlusData));
+
+  let coinGeckoData = shouldLookupToken ? await lookupToken(tokenSubject) : null;
+
+  // "CoinGecko says this does not exist" is evidence; "we could not reach
+  // CoinGecko" is not. Keep them apart.
+  const marketDataUnavailable = coinGeckoData === UNAVAILABLE;
+  if (marketDataUnavailable) coinGeckoData = null;
+
+  if (coinGeckoData && !hintsCrypto && !isTokenMatch(coinGeckoData, parsed.subject)) {
+    console.log(`[risk] ignoring loose CoinGecko match "${coinGeckoData.name}" for "${parsed.subject}"`);
+    coinGeckoData = null;
   }
-  if (status === "blacklisted") {
-    return `We strongly advise against investing in this scheme. SEC Ghana has publicly warned against it and it is not licensed to take your money.`;
-  }
-  if (status === "revoked") {
-    return `${name} no longer holds a valid SEC Ghana licence. Do not place new money with them and seek advice on recovering any funds already committed.`;
-  }
-  if (level === "LOW RISK" && isCrypto) {
-    return `${name} is a real, widely traded asset -- but crypto prices swing hard and nobody in Ghana insures your loss. Use a reputable exchange, never an individual promising fixed returns.`;
-  }
-  if (level === "LOW RISK") {
-    return `${name} appears on the SEC Ghana licensed list. Still confirm the licence yourself at sec.gov.gh and never pay into a personal mobile money wallet.`;
-  }
-  if (level === "MEDIUM RISK" && isCrypto) {
-    return `${name} is tradeable but carries real risk — check the specific warnings above before you buy, and never invest money you cannot afford to lose.`;
-  }
-  if (level === "MEDIUM RISK") {
-    return `We could not fully verify ${name}. Ask for their SEC Ghana licence number and verify it at sec.gov.gh before you invest anything.`;
-  }
-  return `We strongly advise against investing in this scheme.`;
+
+  /* --- Community reports from MongoDB ----------------------------- */
+  const canonicalName = curated?.name || parsed.subject;
+  const slugCandidates = dedupe([
+    slug,
+    slugify(canonicalName),
+    ...(curated?.aliases || []).map(slugify),
+  ]);
+
+  const reportDocs = await Report.find({ schemeSlug: { $in: slugCandidates } }, { reporterPhone: 0 })
+    .sort({ createdAt: -1 })
+    .limit(5)
+    .lean();
+  const reportCount = await Report.countDocuments({ schemeSlug: { $in: slugCandidates } });
+
+  const communityReports = {
+    count: reportCount,
+    recentComments: reportDocs.map((r) => r.description).filter(Boolean),
+    sources: dedupe(reportDocs.map((r) => r.source)),
+  };
+
+  console.log(
+    `[risk] evidence: sec=${secLookup.status} coingecko=${coinGeckoData ? coinGeckoData.symbol : "none"} ` +
+      `goplus=${goPlusData ? goPlusData.chainName : "n/a"} reports=${reportCount}`
+  );
+
+  return {
+    query: parsed.query,
+    slug,
+    queryKind: parsed.kind,
+    host: parsed.host || null,
+    subject: parsed.subject,
+    secData: secLookup,
+    coinGeckoData,
+    goPlusData,
+    communityReports,
+    additionalContext: additionalContext || "",
+    // Internal hints, not sent to the model as instructions
+    _hints: { hintsCrypto, marketDataUnavailable, isContract, curated, fileEntity, known },
+  };
 }
 
 /* ------------------------------------------------------------------ *
- * Main entry point
+ * Step 2 (fallback) -- deterministic rule-based scoring
  * ------------------------------------------------------------------ */
 
-export async function runRiskCheck(rawQuery) {
-  const parsed = parseQuery(rawQuery);
-  const slug = slugify(parsed.subject);
-  console.log(`[risk] checking "${parsed.query}" (detected as ${parsed.kind})`);
+/**
+ * The original weighted model. Used whenever the AI is unavailable, so a check
+ * always returns something defensible.
+ */
+export function scoreWithRules(evidence) {
+  const { secData: sec, coinGeckoData: token, goPlusData: contract, communityReports, queryKind, host } = evidence;
+  const { hintsCrypto, marketDataUnavailable, isContract, curated } = evidence._hints;
 
   const redFlags = [];
   const greenFlags = [];
   const factors = {};
   let score = 0;
 
-  /* --- 1. Our own stored record ----------------------------------- */
-  const known = await Investment.findOne({
-    $or: [{ slug }, { aliases: slug }, { name: new RegExp(`^${escapeRegex(parsed.subject)}$`, "i") }],
-  }).lean();
-
-  if (known) console.log(`[risk] matched stored entity: ${known.name} (${known.status})`);
-
-  const secEntity = lookupSecEntity(parsed.subject);
-
-  /* --- 2. Smart contract check (GoPlus) --------------------------- */
-  // Only for an actual 0x address, as specified.
-  const isContract = parsed.kind === "contract";
-  const contract = isContract ? await checkContract(parsed.subject) : null;
-
-  /* --- 3. Crypto market data (CoinGecko) -------------------------- */
-  // Only curated records count as a local match -- records this engine cached
-  // itself carry status "unknown" and must not suppress a live lookup.
-  const localMatch = Boolean(secEntity) || (known != null && known.status !== "unknown");
-  const curatedCategory = secEntity?.category || (known && known.status !== "unknown" ? known.category : null);
-
-  // A curated entry settles the question. Without one, a ticker-shaped query or
-  // crypto wording is our hint -- otherwise short acronyms like "CDH" get
-  // mistaken for token symbols.
-  const hintsCrypto =
-    parsed.kind === "contract" ||
-    curatedCategory === "crypto" ||
-    (!curatedCategory && (parsed.kind === "token" || mentionsCrypto(parsed.query)));
-  const flagged = known?.status === "blacklisted" || secEntity?.status === "blacklisted";
-
-  const tokenSubject = contract?.tokenSymbol || parsed.subject;
-  const shouldLookupToken =
-    !flagged && parsed.kind !== "link" && (hintsCrypto || !localMatch) && (parsed.kind !== "contract" || Boolean(contract));
-
-  let token = shouldLookupToken ? await lookupToken(tokenSubject) : null;
-
-  // Tell "CoinGecko says this does not exist" apart from "we could not reach
-  // CoinGecko". Only the first is evidence against the token.
-  const marketDataUnavailable = token === UNAVAILABLE;
-  if (marketDataUnavailable) token = null;
-
-  // CoinGecko search is fuzzy, so when we were only guessing this might be a
-  // token, require the result to actually match what the user typed.
-  if (token && !hintsCrypto && !isTokenMatch(token, parsed.subject)) {
-    console.log(`[risk] ignoring loose CoinGecko match "${token.name}" for "${parsed.subject}"`);
-    token = null;
-  }
-
-  const treatAsCrypto = hintsCrypto || Boolean(token);
   const establishedToken = Boolean(token && token.marketCapRank && token.marketCapRank <= 500);
+  const treatAsCrypto = hintsCrypto || Boolean(token);
+  const reportCount = communityReports.count;
 
-  /* --- 3b. Score the contract, now that we know the market context - */
+  /* --- Contract security (dominant on the 0x path) ---------------- */
   if (isContract) {
     if (contract) {
       const { points, flags, greenFlags: good } = scoreContract(contract);
-
-      // Honeypots are absolute. The other permissions are real but are also
-      // normal for big centralised tokens (USDT can freeze wallets), so for an
-      // established asset they weigh far less than they do on an unknown one.
       const honeypotPoints = contract.isHoneypot ? 6 : 0;
-      const otherPoints = points - honeypotPoints;
-      const damped = establishedToken ? otherPoints * 0.35 : otherPoints;
-
-      factors.contract = Math.min(10, honeypotPoints + damped);
+      const other = points - honeypotPoints;
+      // Big centralised tokens legitimately hold these permissions (USDT can
+      // freeze wallets), so they weigh far less on an established asset.
+      factors.contract = Math.min(10, honeypotPoints + (establishedToken ? other * 0.35 : other));
       redFlags.push(...flags);
       greenFlags.push(...good);
 
@@ -158,47 +190,51 @@ export async function runRiskCheck(rawQuery) {
     score += factors.contract;
   }
 
-  /* --- 4. SEC Ghana status (heaviest weight, max 5) --------------- */
-  let status = known?.status || secEntity?.status || "unknown";
-  const source = known?.source || secEntity?.source || "";
-  const licenseType = known?.licenseType || secEntity?.licenseType || "";
+  /* --- SEC status (heaviest weight) ------------------------------- */
+  let status = sec.status;
   let statusLabel;
+  let citation = "";
 
   if (status === "licensed") {
-    statusLabel = licenseType
-      ? `Licensed by SEC Ghana as a ${licenseType}`
-      : "Licensed by SEC Ghana";
-    greenFlags.push(`On the SEC Ghana licensed list${licenseType ? ` as a ${licenseType}` : ""}`);
+    statusLabel = sec.licenseType ? `Licensed by SEC Ghana as a ${sec.licenseType}` : "Licensed by SEC Ghana";
+    citation = "Securities Industry Act, 2016 (Act 929)";
+    greenFlags.push(`On the SEC Ghana licensed list${sec.licenseType ? ` as a ${sec.licenseType}` : ""}`);
     factors.status = 0;
+  } else if (status === "sandbox") {
+    statusLabel = "Provisional sandbox approval only — NOT a full SEC Ghana licence";
+    citation = "Virtual Asset Service Providers Act, 2025 (Act 1154)";
+    redFlags.push("Holds provisional sandbox approval only, not a full licence — protections are limited");
+    greenFlags.push("Admitted to the SEC Ghana virtual asset sandbox");
+    factors.status = 1.5;
   } else if (status === "blacklisted") {
-    statusLabel = `Blacklisted — publicly warned against by ${source || "SEC Ghana"}`;
-    redFlags.push(blacklistFlagText(source));
+    statusLabel = `Blacklisted — publicly warned against by ${sec.source || "SEC Ghana"}`;
+    citation = "SEC Public Notice SEC/PN/002/07/2025; Section 109, Act 929";
+    redFlags.push(blacklistFlagText(sec.source));
     factors.status = 5;
   } else if (status === "revoked") {
     statusLabel = "SEC Ghana licence revoked — no longer authorised";
+    citation = "Securities Industry Act, 2016 (Act 929)";
     redFlags.push("SEC Ghana licence has been revoked");
     factors.status = 4.5;
   } else if (establishedToken || isContract) {
-    // Crypto is not a licensed product category in Ghana, so a missing licence
-    // is expected here rather than a fraud signal.
     statusLabel = "Crypto assets are not SEC Ghana licensed products — no licence expected";
+    citation = "Virtual Asset Service Providers Act, 2025 (Act 1154)";
     redFlags.push("Not covered by SEC Ghana investor protection — you carry the full risk");
     factors.status = 1.5;
-    status = "unknown";
+    status = "unregistered";
   } else {
     statusLabel = "Not on the SEC Ghana licensed list";
-    redFlags.push("Not licensed by SEC Ghana to take investments");
+    citation = "Section 109, Securities Industry Act, 2016 (Act 929)";
+    redFlags.push("Not licensed by SEC Ghana to take investments — unlicensed operation is illegal under Act 929");
     factors.status = 2.5;
-    status = "unknown";
+    status = "unregistered";
   }
   score += factors.status;
 
-  /* --- 5. Age / track record (max 1.5) ---------------------------- */
+  /* --- Age / track record ----------------------------------------- */
   const ageDays = token?.ageDays ?? null;
-  const dateAdded = known?.dateAdded || (secEntity?.dateAdded ? new Date(secEntity.dateAdded) : null);
 
   if (status === "blacklisted" || status === "revoked") {
-    // A flagged scheme gets no credit for having been around a long time.
     factors.age = 0.5;
   } else if (ageDays != null && ageDays < 30) {
     factors.age = 1.5;
@@ -209,15 +245,7 @@ export async function runRiskCheck(rawQuery) {
   } else if (ageDays != null) {
     factors.age = 0;
     greenFlags.push(`Trading for about ${Math.floor(ageDays / 365)} years`);
-  } else if (establishedToken || status === "licensed") {
-    factors.age = 0;
-  } else if (token) {
-    // CoinGecko often has no genesis date. Real market depth stands in for a
-    // track record, and the market thresholds below judge it instead.
-    factors.age = 0;
-  } else if (isContract) {
-    // The contract check already covers an unverified address; do not also
-    // charge it the "no company history" penalty.
+  } else if (establishedToken || status === "licensed" || status === "sandbox" || token || isContract) {
     factors.age = 0;
   } else {
     factors.age = 1;
@@ -225,34 +253,25 @@ export async function runRiskCheck(rawQuery) {
   }
   score += factors.age;
 
-  /* --- 6. Promised returns / scam language (max 1.5) -------------- */
-  const haystack = [parsed.query, ...(known?.redFlags || []), ...(secEntity?.redFlags || [])].join(" ");
+  /* --- Promised returns / scam wording ---------------------------- */
+  const haystack = [evidence.query, ...(sec.curatedRedFlags || [])].join(" ");
   const keywords = findScamKeywords(haystack);
   const returnPromise = /(\d{1,3})\s?%/.exec(haystack);
 
   if (keywords.length || returnPromise) {
     factors.returns = Math.min(1.5, 0.6 * keywords.length + (returnPromise ? 0.9 : 0));
     if (returnPromise) {
-      redFlags.push(`Advertises returns of ${returnPromise[1]}% — far above any licensed Ghanaian product`);
+      redFlags.push(
+        `Advertises returns of ${returnPromise[1]}% — SEC Ghana cites such rates as a fraud indicator`
+      );
     }
-    if (keywords.length) {
-      redFlags.push(`Uses classic scam wording: "${keywords.slice(0, 2).join('", "')}"`);
-    }
+    if (keywords.length) redFlags.push(`Uses classic scam wording: "${keywords.slice(0, 2).join('", "')}"`);
   } else {
     factors.returns = 0;
   }
   score += factors.returns;
 
-  /* --- 7. Community reports (max 2) ------------------------------- */
-  const canonicalName = known?.name || secEntity?.name || parsed.subject;
-  const slugCandidates = dedupe([
-    slug,
-    slugify(canonicalName),
-    ...(known?.aliases || []).map(slugify),
-    ...(secEntity?.aliases || []).map(slugify),
-  ]);
-
-  const reportCount = await Report.countDocuments({ schemeSlug: { $in: slugCandidates } });
+  /* --- Community reports ------------------------------------------ */
   if (reportCount >= 5) factors.reports = 2;
   else if (reportCount >= 3) factors.reports = 1.5;
   else if (reportCount >= 1) factors.reports = 1;
@@ -263,7 +282,7 @@ export async function runRiskCheck(rawQuery) {
   }
   score += factors.reports;
 
-  /* --- 8. Market presence / online footprint (max 2.5) ------------ */
+  /* --- Market presence / online footprint ------------------------- */
   factors.presence = 0;
 
   if (treatAsCrypto && token) {
@@ -289,162 +308,261 @@ export async function runRiskCheck(rawQuery) {
       );
     }
   } else if (treatAsCrypto && !token && marketDataUnavailable) {
-    // We could not check, so say so rather than implying the token is fake.
     redFlags.push("Live market data could not be checked just now — treat this result as incomplete");
-  } else if (treatAsCrypto && !token && parsed.kind !== "contract") {
+  } else if (treatAsCrypto && !token && !isContract) {
     factors.presence += 1.5;
     redFlags.push("Token does not exist on CoinGecko — no real market data behind it");
-  } else if (parsed.kind === "link") {
-    const tld = secData.suspiciousTlds.find((t) => parsed.host.endsWith(t));
+  } else if (queryKind === "link") {
+    const tld = secData.suspiciousTlds.find((t) => host.endsWith(t));
     if (tld) {
       factors.presence += 1;
       redFlags.push(`Website uses the ${tld} domain, common in throwaway scam sites`);
     }
-    if (secData.linkShorteners.some((s) => parsed.host === s)) {
+    if (secData.linkShorteners.some((s) => host === s)) {
       factors.presence += 0.8;
       redFlags.push("Shared through a link shortener that hides the real destination");
     }
-  } else if (status === "unknown" && !localMatch && !isContract) {
+  } else if (status === "unregistered" && !curated && !isContract) {
     factors.presence += 0.8;
-    redFlags.push("No verifiable team, office address or online footprint found");
+    redFlags.push("Faceless operation — no verifiable team, office address or licence number found");
   }
 
   factors.presence = Math.min(2.5, factors.presence);
   score += factors.presence;
 
   /* --- Overrides and clamping ------------------------------------- */
-  // A licensed entity with no real community complaints cannot be high risk.
   if (status === "licensed" && reportCount < 3) score = Math.min(score, 2.5);
-
-  // Conversely, an entity SEC Ghana has publicly warned against is high risk
-  // regardless of anything else.
+  if (status === "sandbox" && reportCount < 3) score = Math.min(score, 5);
   if (status === "blacklisted") score = Math.max(score, 8);
   if (status === "revoked") score = Math.max(score, 7);
-
-  // A honeypot is the most severe thing we can detect.
   if (contract?.isHoneypot) score = Math.max(score, 9.5);
 
   score = Math.max(0.5, Math.min(10, Number(score.toFixed(1))));
-  const { riskLevel, color, emoji } = levelFor(score);
+  const { riskVerdict, riskColor } = verdictForScore(score);
 
-  const name = known?.name || secEntity?.name || contract?.tokenName || token?.name || titleCase(parsed.subject);
-  const category = known?.category || secEntity?.category || (treatAsCrypto ? "crypto" : "other");
+  /* --- Flags -------------------------------------------------------*/
+  const curatedFlags = sec.curatedRedFlags || [];
+  const generic = !curatedFlags.length && status === "blacklisted" ? genericBlacklistFlags(sec.category, sec.source) : [];
+  const scored = generic.length ? redFlags.filter((f) => f !== blacklistFlagText(sec.source)) : redFlags;
+  const finalFlags = dedupe([...curatedFlags, ...generic, ...scored]).slice(0, 6);
 
-  // Prefer hand-written red flags for curated entities -- they read better.
-  // Flags this engine derived itself are never reused: they go stale, and a
-  // flag from a degraded earlier run must not resurface as fact.
-  const curated =
-    known && known.status !== "unknown" && known.redFlags?.length ? known.redFlags : secEntity?.redFlags || [];
+  const name = sec.name || contract?.tokenName || token?.name || titleCase(evidence.subject);
 
-  // Most blacklisted entities have no hand-written notes, so spell out what
-  // being on the warning list actually means for the reader.
-  const generic = !curated.length && status === "blacklisted" ? genericBlacklistFlags(category, source) : [];
-
-  // The generic set already states the warning and its source, so drop the
-  // one-line version we added during scoring.
-  const scored = generic.length ? redFlags.filter((f) => f !== blacklistFlagText(source)) : redFlags;
-
-  const finalFlags = dedupe([...curated, ...generic, ...scored]).slice(0, 6);
-
-  const result = {
-    name,
-    query: parsed.query,
-    slug,
-    queryKind: parsed.kind,
-    category,
-    status,
-    statusLabel,
-    source,
-    licenseType,
-    dateAdded,
+  return {
+    entityName: name,
     riskScore: score,
-    riskLevel,
-    color,
-    emoji,
-    redFlags: finalFlags,
-    greenFlags: dedupe(greenFlags).slice(0, 4),
-    reportCount,
+    riskVerdict,
+    riskColor,
+    summary: summaryFor({ name, status, riskVerdict, reportCount }),
+    secStatus: { status, detail: statusLabel, citation },
+    redFlags: finalFlags.map((f) => ({ flag: f, severity: severityFor(status, f), source: "Qwench rule engine" })),
+    positiveSignals: dedupe(greenFlags)
+      .slice(0, 4)
+      .map((s) => ({ signal: s, source: "Qwench rule engine" })),
     recommendation: recommendationFor({
-      level: riskLevel,
+      verdict: riskVerdict,
       name,
       status,
       isCrypto: treatAsCrypto,
       honeypot: contract?.isHoneypot,
     }),
-    coingecko: token,
-    contract,
-    factors,
-    checkedAt: new Date().toISOString(),
+    scoreBreakdown: {
+      licensing: Number(((factors.status / 5) * 40).toFixed(1)),
+      returnFlags: Number(((factors.returns / 1.5) * 25).toFixed(1)),
+      transparency: Number(((factors.presence / 2.5) * 20).toFixed(1)),
+      digitalAsset: Number((((factors.contract || 0) / 10) * 15).toFixed(1)),
+      communityBoost: Number(factors.reports.toFixed(1)),
+    },
     disclaimer:
-      "Qwench is an awareness tool, not financial advice. Always verify licences directly with SEC Ghana at sec.gov.gh.",
+      "This assessment is based on publicly available data and SEC Ghana regulatory information. Always verify directly with SEC Ghana (0800100065) before making investment decisions.",
+    _factors: factors,
   };
+}
+
+/* ------------------------------------------------------------------ *
+ * Step 3 -- orchestrate: gather, let the AI decide, fall back to rules
+ * ------------------------------------------------------------------ */
+
+export async function runRiskCheck(rawQuery, { additionalContext = "", callProvider } = {}) {
+  const evidence = await gatherEvidence(rawQuery, additionalContext);
+
+  // Always compute the rule-based result: it is the fallback, and its factor
+  // breakdown is useful for debugging even when the AI answers.
+  const rules = scoreWithRules(evidence);
+
+  // The model never sees our internal hints.
+  const { _hints, ...aiInput } = evidence;
+  const ai = await analyzeWithAI({ ...aiInput, slug: evidence.slug }, { callProvider });
+
+  const chosen = ai || rules;
+  const analyzedBy = ai ? "ai" : "rules";
+
+  const result = normalize({ chosen, rules, evidence, analyzedBy, ai });
 
   console.log(
-    `[risk] "${parsed.query}" -> ${score}/10 ${riskLevel} (status: ${status}, reports: ${reportCount}, flags: ${finalFlags.length})`
+    `[risk] "${evidence.query}" -> ${result.riskScore}/10 ${result.riskVerdict} ` +
+      `(by ${analyzedBy}${ai?.fromCache ? ", cached" : ""}, status: ${result.status}, reports: ${result.reportCount})`
   );
 
-  // Cache the result under the canonical slug, remembering the query as an
-  // alias so we do not end up with one document per spelling. Curated entries
-  // are never downgraded by this.
-  if (status === "unknown") {
-    const storeSlug = slugify(name) || slug;
-    await Investment.updateOne(
-      { slug: storeSlug },
-      {
-        $addToSet: { aliases: slug },
-        $set: {
-          name,
-          slug: storeSlug,
-          category,
-          status,
-          source: "Qwench risk engine",
-          riskScore: score,
-          // Deliberately not storing redFlags: they are derived per check and
-          // would go stale. Only curated entries carry hand-written flags.
-          lastChecked: new Date(),
-        },
-      },
-      { upsert: true }
-    ).catch((err) => console.warn(`[risk] could not cache entity: ${err.message}`));
-  } else {
-    await Investment.updateOne({ slug: slugify(canonicalName) }, { $set: { lastChecked: new Date() } }).catch(
-      () => {}
-    );
-  }
-
+  await cacheEntity(result, evidence);
   return result;
 }
 
-/* ------------------------------------------------------------------ */
+/** Shapes either source into the single contract the API and bot consume. */
+function normalize({ chosen, rules, evidence, analyzedBy, ai }) {
+  const sec = chosen.secStatus || {};
+  const status = sec.status || evidence.secData.status;
+  const color = chosen.riskColor || "yellow";
+
+  return {
+    name: chosen.entityName || rules.entityName,
+    query: evidence.query,
+    slug: evidence.slug,
+    queryKind: evidence.queryKind,
+    category: evidence.secData.category || (evidence.coinGeckoData ? "crypto" : "other"),
+
+    riskScore: chosen.riskScore,
+    riskVerdict: chosen.riskVerdict,
+    riskColor: color,
+    riskLevel: LEVEL_TEXT[chosen.riskVerdict] || "MEDIUM RISK",
+    emoji: EMOJI[color] || "🟡",
+    summary: chosen.summary || rules.summary,
+
+    status,
+    statusLabel: sec.detail || rules.secStatus.detail,
+    citation: sec.citation || rules.secStatus.citation,
+    source: evidence.secData.source || "",
+    licenseType: evidence.secData.licenseType || "",
+    dateAdded: evidence.secData.dateAdded || null,
+
+    // Plain strings for simple formatting, plus the structured version.
+    redFlags: (chosen.redFlags || []).map((f) => f.flag),
+    redFlagsDetailed: chosen.redFlags || [],
+    greenFlags: (chosen.positiveSignals || []).map((s) => s.signal),
+    positiveSignals: chosen.positiveSignals || [],
+
+    recommendation: chosen.recommendation || rules.recommendation,
+    scoreBreakdown: chosen.scoreBreakdown || rules.scoreBreakdown,
+
+    reportCount: evidence.communityReports.count,
+    coingecko: evidence.coinGeckoData,
+    contract: evidence.goPlusData,
+
+    analyzedBy,
+    aiProvider: ai?.provider || null,
+    aiModel: ai?.model || null,
+    aiFromCache: Boolean(ai?.fromCache),
+    aiCorrections: ai?.corrections || [],
+    // The deterministic score is always reported alongside, so a surprising AI
+    // verdict can be compared against the rules.
+    ruleBasedScore: rules.riskScore,
+    factors: rules._factors,
+
+    checkedAt: new Date().toISOString(),
+    disclaimer: chosen.disclaimer || rules.disclaimer,
+  };
+}
+
+/** Keep a record so repeat lookups are fast and the web app has history. */
+async function cacheEntity(result, evidence) {
+  if (evidence.secData.found) {
+    await Investment.updateOne({ slug: slugify(evidence.secData.name) }, { $set: { lastChecked: new Date() } }).catch(
+      () => {}
+    );
+    return;
+  }
+
+  const storeSlug = slugify(result.name) || result.slug;
+  await Investment.updateOne(
+    { slug: storeSlug },
+    {
+      $addToSet: { aliases: result.slug },
+      $set: {
+        name: result.name,
+        slug: storeSlug,
+        category: result.category,
+        status: "unknown",
+        source: "Qwench risk engine",
+        riskScore: result.riskScore,
+        // Derived flags are deliberately not stored: they go stale.
+        lastChecked: new Date(),
+      },
+    },
+    { upsert: true }
+  ).catch((err) => console.warn(`[risk] could not cache entity: ${err.message}`));
+}
+
+/* ------------------------------------------------------------------ *
+ * Copy helpers
+ * ------------------------------------------------------------------ */
+
+function summaryFor({ name, status, riskVerdict, reportCount }) {
+  if (status === "blacklisted") return `${name} is on a SEC Ghana public warning list and is not licensed to take your money.`;
+  if (status === "revoked") return `${name} no longer holds a valid SEC Ghana licence.`;
+  if (status === "licensed") return `${name} is licensed by SEC Ghana and shows no community complaints.`;
+  if (status === "sandbox") return `${name} has provisional sandbox approval only, which is not a full licence.`;
+  if (riskVerdict === "LOW") return `${name} looks legitimate, but it is not covered by SEC Ghana investor protection.`;
+  if (reportCount > 0) return `${name} is unregistered with SEC Ghana and has ${reportCount} community report(s).`;
+  return `${name} could not be verified against any SEC Ghana list.`;
+}
+
+function severityFor(status, flag) {
+  if (/honeypot/i.test(flag)) return "critical";
+  if (status === "blacklisted" || status === "revoked") return "critical";
+  if (/not licensed|unlicensed|no legal protection|owner can change/i.test(flag)) return "high";
+  if (/community report|market cap|volume|faceless|no website/i.test(flag)) return "medium";
+  return "low";
+}
+
+function recommendationFor({ verdict, name, status, isCrypto, honeypot }) {
+  if (honeypot) {
+    return `Do not buy this token. The contract is built so you can buy but cannot sell — your money would be unrecoverable.`;
+  }
+  if (status === "blacklisted") {
+    return `Do not put any money into ${name}. SEC Ghana has publicly warned against it and it has no licence to take deposits or investments. If you have already paid, stop sending money and report it on 0800100065.`;
+  }
+  if (status === "revoked") {
+    return `${name} no longer holds a valid SEC Ghana licence. Do not place new money with them, and get advice on recovering anything already committed.`;
+  }
+  if (status === "sandbox") {
+    return `${name} is in the SEC Ghana sandbox, which means provisional approval only — not a full licence. Keep any amount small and understand you have limited protection if it fails.`;
+  }
+  if (verdict === "LOW" && isCrypto) {
+    return `${name} is a real, widely traded asset — but crypto prices swing hard and nobody in Ghana insures your loss. Use a reputable exchange, never an individual promising fixed returns.`;
+  }
+  if (verdict === "LOW") {
+    return `${name} appears on the SEC Ghana licensed list. Still confirm the licence yourself at sec.gov.gh or on 0800100065, and never pay into a personal mobile money wallet.`;
+  }
+  if (verdict === "MEDIUM" && isCrypto) {
+    return `${name} is tradeable but carries real risk — check the specific warnings above before you buy, and never invest money you cannot afford to lose.`;
+  }
+  if (verdict === "MEDIUM") {
+    return `We could not verify ${name} against any SEC Ghana list. Ask for their SEC licence number and confirm it at sec.gov.gh before you pay anything. Operating without a licence is illegal under Act 929.`;
+  }
+  return `We strongly advise against investing in ${name}. It is not licensed by SEC Ghana and shows several of the fraud indicators SEC Ghana warns about.`;
+}
 
 function blacklistFlagText(source) {
   return `Named in a ${source || "SEC Ghana"} public warning as unlicensed`;
 }
 
-/**
- * What it means to be on the SEC Ghana warning list, for an entity we hold no
- * hand-written notes on.
- */
 function genericBlacklistFlags(category, source) {
   const by = source || "SEC Ghana";
   const flags = [
-    `Not licensed by SEC Ghana to take deposits or investments from the public`,
+    "Operating without a valid SEC Ghana licence (Section 109, Act 929)",
     `${by} has published a public warning telling people not to invest`,
   ];
 
-  if (category === "forex") {
-    flags.push("Unlicensed forex / binary trading platform marketed to Ghanaians");
-  } else if (category === "crypto") {
-    flags.push("Unlicensed crypto scheme -- no regulator can recover your money");
-  } else if (category === "ponzi") {
-    flags.push("Pays earlier members from new members' deposits, which always collapses");
-  } else {
-    flags.push("Any promise of guaranteed returns from this entity is unlawful in Ghana");
-  }
+  if (category === "forex") flags.push("Unlicensed forex / binary trading platform marketed to Ghanaians");
+  else if (category === "crypto") flags.push("Unlicensed crypto scheme — no regulator can recover your money");
+  else if (category === "ponzi") flags.push("Pays earlier members from new members' deposits, which always collapses");
+  else flags.push("Any promise of guaranteed returns from this entity is unlawful in Ghana");
 
   flags.push("You would have no legal protection if your money disappears");
   return flags;
 }
+
+/* ------------------------------------------------------------------ */
 
 function isTokenMatch(token, subject) {
   const q = slugify(subject);

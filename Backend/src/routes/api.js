@@ -19,14 +19,14 @@ function hashPhone(phone) {
 
 /* POST /api/check -- run a risk analysis on a company / token / link */
 router.post("/check", async (req, res) => {
-  const { query, channel = "whatsapp" } = req.body || {};
+  const { query, channel = "whatsapp", additionalContext = "" } = req.body || {};
 
   if (!query || !String(query).trim()) {
     return res.status(400).json({ ok: false, error: "A 'query' is required" });
   }
 
   try {
-    const result = await runRiskCheck(query);
+    const result = await runRiskCheck(query, { additionalContext });
 
     // Log the check for analytics / trending -- never blocks the response.
     Check.create({

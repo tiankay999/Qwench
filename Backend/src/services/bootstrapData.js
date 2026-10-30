@@ -1,5 +1,5 @@
 import Investment from "../models/Investment.js";
-import { blacklistedEntities, licensedEntities, slugify } from "./secData.js";
+import { blacklistedEntities, licensedEntities, sandboxEntities, slugify } from "./secData.js";
 
 /**
  * Loads the SEC Ghana lists into MongoDB on server start.
@@ -21,6 +21,18 @@ export async function bootstrapSecData() {
       riskScore: 1,
       redFlags: [],
       dateAdded: e.dateAdded ? new Date(e.dateAdded) : new Date(),
+    })),
+    ...sandboxEntities.map((e) => ({
+      name: e.name,
+      slug: slugify(e.name),
+      aliases: dedupe([...(e.aliases || []), slugify(e.name)]),
+      status: "sandbox",
+      source: e.source,
+      licenseType: "Provisional sandbox approval",
+      category: "crypto",
+      riskScore: 4,
+      redFlags: [],
+      dateAdded: new Date(),
     })),
     ...blacklistedEntities.map((e) => ({
       name: e.name,
@@ -46,10 +58,9 @@ export async function bootstrapSecData() {
 
   try {
     const res = await Investment.bulkWrite(ops, { ordered: false });
-    const licensed = licensedEntities.length;
-    const blacklisted = blacklistedEntities.length;
     console.log(
-      `[bootstrap] SEC Ghana register loaded: ${licensed} licensed, ${blacklisted} blacklisted ` +
+      `[bootstrap] SEC Ghana register loaded: ${licensedEntities.length} licensed, ` +
+        `${sandboxEntities.length} sandbox, ${blacklistedEntities.length} blacklisted ` +
         `(${res.upsertedCount} new, ${res.modifiedCount} updated)`
     );
   } catch (err) {

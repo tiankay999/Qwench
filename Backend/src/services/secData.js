@@ -8,7 +8,7 @@ const dataPath = join(here, "..", "data", "sec-ghana.json");
 const raw = JSON.parse(readFileSync(dataPath, "utf8"));
 
 console.log(
-  `[sec-data] loaded ${raw.licensed.length} licensed entities and ${raw.blacklisted.length} blacklisted entities`
+  `[sec-data] loaded ${raw.licensed.length} licensed, ${(raw.sandbox || []).length} sandbox and ${raw.blacklisted.length} blacklisted entities`
 );
 
 /** "Menzgold Ghana Ltd!" -> "menzgold ghana ltd" */
@@ -45,6 +45,16 @@ export const licensedEntities = raw.licensed.map((e) => ({
   category: "investment",
 }));
 
+/** Provisional approval under the Act 1154 sandbox -- not a full licence. */
+export const sandboxEntities = (raw.sandbox || []).map((e) => ({
+  ...e,
+  status: "sandbox",
+  aliases: e.aliases || [],
+  redFlags: [],
+  category: "crypto",
+  source: "SEC Ghana virtual asset sandbox (Act 1154)",
+}));
+
 function buildIndex() {
   const index = new Map();
 
@@ -63,6 +73,11 @@ function buildIndex() {
   }
 
   for (const e of licensedEntities) {
+    add(e.name, e);
+    e.aliases.forEach((a) => add(a, e));
+  }
+
+  for (const e of sandboxEntities) {
     add(e.name, e);
     e.aliases.forEach((a) => add(a, e));
   }

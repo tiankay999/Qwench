@@ -4,6 +4,7 @@ import makeWASocket, {
   makeCacheableSignalKeyStore,
   useMultiFileAuthState,
   areJidsSameUser,
+  downloadMediaMessage,
 } from "@whiskeysockets/baileys";
 import pino from "pino";
 import qrcode from "qrcode-terminal";
@@ -14,6 +15,8 @@ const AUTH_DIR = process.env.AUTH_DIR || "./auth";
 const ALLOW_GROUPS = process.env.ALLOW_GROUPS === "true";
 // Narrow terminals render the compact QR better; set QR_SMALL=false for the big one.
 const QR_SMALL = process.env.QR_SMALL !== "false";
+// WhatsApp images are small; refuse anything the vision model would reject.
+const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
 
 const logger = pino({ level: process.env.BAILEYS_LOG_LEVEL || "silent" });
 
@@ -160,11 +163,15 @@ async function handleMessage(sock, msg) {
   }
 
   const text = extractText(msg.message);
-  if (!text) return;
+  const media = await extractImage(sock, msg);
+  if (!text && !media) return;
 
   const targetJid = isSelfChat && myPhone ? `${myPhone}@s.whatsapp.net` : jid;
   const phone = senderPhone || myPhone || "user";
-  console.log(`[wa] 📩 from +${phone}${isSelfChat ? " (self-test)" : ""}: ${text}`);
+  console.log(
+    `[wa] 📩 from +${phone}${isSelfChat ? " (self-test)" : ""}: ${text || "(no caption)"}` +
+      `${media ? ` [📸 ${media.mimeType}, ${(media.bytes / 1024).toFixed(0)}KB]` : ""}`
+  );
 
   const send = async (body) => {
     const sent = await sock.sendMessage(targetJid, { text: body });
@@ -178,7 +185,7 @@ async function handleMessage(sock, msg) {
   // Show the typing bubble so the wait for the API feels intentional.
   await sock.sendPresenceUpdate("composing", targetJid).catch(() => {});
 
-  await routeMessage({ jid: targetJid, phone, send }, text);
+  await routeMessage({ jid: targetJid, phone, send }, text, media);
 
   await sock.sendPresenceUpdate("paused", targetJid).catch(() => {});
 }
@@ -201,4 +208,39 @@ function extractText(message) {
     m.listResponseMessage?.title ||
     ""
   ).trim();
+}
+
+/**
+ * Download an image the user sent, as base64, so it can go to the vision model.
+ * Returns null when the message has no image (or it could not be fetched).
+ */
+async function extractImage(sock, msg) {
+  const m = msg.message?.ephemeralMessage?.message || msg.message?.viewOnceMessage?.message || msg.message;
+  if (!m) return null;
+
+  const image = m.imageMessage || m.documentWithCaptionMessage?.message?.documentMessage || m.documentMessage;
+  if (!image) return null;
+
+  const mimeType = image.mimetype || "image/jpeg";
+  // Documents can be anything; only accept ones that are actually images.
+  if (!mimeType.startsWith("image/")) {
+    console.log(`[wa] ignoring non-image attachment (${mimeType})`);
+    return null;
+  }
+
+  try {
+    const buffer = await downloadMediaMessage(msg, "buffer", {}, { logger, reuploadRequest: sock.updateMediaMessage });
+    if (!buffer?.length) return null;
+
+    if (buffer.length > MAX_IMAGE_BYTES) {
+      console.warn(`[wa] image too large: ${(buffer.length / 1_048_576).toFixed(1)}MB`);
+      return { tooLarge: true, bytes: buffer.length, mimeType };
+    }
+
+    console.log(`[wa] 📥 downloaded image: ${(buffer.length / 1024).toFixed(0)}KB ${mimeType}`);
+    return { base64: buffer.toString("base64"), mimeType, bytes: buffer.length };
+  } catch (err) {
+    console.error(`[wa] image download failed: ${err.message}`);
+    return null;
+  }
 }

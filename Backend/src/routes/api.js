@@ -7,8 +7,11 @@ import Investment from "../models/Investment.js";
 import Report from "../models/Report.js";
 import { aiStatus } from "../services/aiAnalyzer.js";
 import { getTrendingCoins } from "../services/coingecko.js";
+import { analyzeImage } from "../services/imageAnalyzer.js";
+import { verifyName } from "../services/nameVerifier.js";
 import { runRiskCheck } from "../services/riskEngine.js";
 import { slugify } from "../services/secData.js";
+import { analyzeUrl } from "../services/urlAnalyzer.js";
 
 const router = Router();
 
@@ -21,14 +24,26 @@ function hashPhone(phone) {
 
 /* POST /api/check -- run a risk analysis on a company / token / link */
 router.post("/check", async (req, res) => {
-  const { query, channel = "whatsapp", additionalContext = "" } = req.body || {};
+  const {
+    query,
+    channel = "whatsapp",
+    additionalContext = "",
+    spoofingDetection = null,
+    injectedFlags = [],
+    evidence = null,
+  } = req.body || {};
 
   if (!query || !String(query).trim()) {
     return res.status(400).json({ ok: false, error: "A 'query' is required" });
   }
 
   try {
-    const result = await runRiskCheck(query, { additionalContext });
+    const result = await runRiskCheck(query, {
+      additionalContext,
+      spoofingDetection,
+      injectedFlags: Array.isArray(injectedFlags) ? injectedFlags : [],
+      userEvidence: evidence,
+    });
 
     // Log the check for analytics / trending -- never blocks the response.
     Check.create({
@@ -50,6 +65,58 @@ router.post("/check", async (req, res) => {
   } catch (err) {
     console.error("[api] /check failed:", err);
     res.status(500).json({ ok: false, error: "Risk check failed" });
+  }
+});
+
+/* POST /api/verify-name -- anti-spoofing check, runs BEFORE /api/check */
+router.post("/verify-name", async (req, res) => {
+  const { query } = req.body || {};
+
+  if (!query || !String(query).trim()) {
+    return res.status(400).json({ ok: false, error: "A 'query' is required" });
+  }
+
+  try {
+    const verification = await verifyName(query);
+    res.json({ ok: true, data: verification });
+  } catch (err) {
+    console.error("[api] /verify-name failed:", err);
+    // Never block a check because verification broke -- fail open to "no match".
+    res.json({
+      ok: true,
+      degraded: true,
+      data: { query, decision: "no_match", match: null, needsConfirmation: false, autoFlagged: false, injectedFlags: [] },
+    });
+  }
+});
+
+/* POST /api/evidence/image -- analyze a screenshot the user forwarded */
+router.post("/evidence/image", async (req, res) => {
+  const { base64, mimeType = "image/jpeg", entityName = "" } = req.body || {};
+
+  if (!base64) return res.status(400).json({ ok: false, error: "A 'base64' image is required" });
+
+  try {
+    const analysis = await analyzeImage(base64, mimeType, entityName);
+    res.json({ ok: !analysis.error, data: analysis });
+  } catch (err) {
+    console.error("[api] /evidence/image failed:", err);
+    res.status(500).json({ ok: false, error: "Could not analyze that image" });
+  }
+});
+
+/* POST /api/evidence/url -- fetch and analyze a link the user sent */
+router.post("/evidence/url", async (req, res) => {
+  const { url, entityName = "" } = req.body || {};
+
+  if (!url || !String(url).trim()) return res.status(400).json({ ok: false, error: "A 'url' is required" });
+
+  try {
+    const analysis = await analyzeUrl(String(url).trim(), entityName);
+    res.json({ ok: !analysis.error, data: analysis });
+  } catch (err) {
+    console.error("[api] /evidence/url failed:", err);
+    res.status(500).json({ ok: false, error: "Could not analyze that link" });
   }
 });
 

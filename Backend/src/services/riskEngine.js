@@ -3,7 +3,14 @@ import Report from "../models/Report.js";
 import { analyzeWithAI, verdictForScore } from "./aiAnalyzer.js";
 import { UNAVAILABLE, lookupToken } from "./coingecko.js";
 import { checkContract, isContractAddress, scoreContract } from "./goplus.js";
-import { findScamKeywords, lookupSecEntity, secData, slugify } from "./secData.js";
+import {
+  findScamKeywords,
+  isGovernmentDomain,
+  lookupAuthorityByDomain,
+  lookupSecEntity,
+  secData,
+  slugify,
+} from "./secData.js";
 
 const EMOJI = { green: "🟢", yellow: "🟡", orange: "🟠", red: "🔴" };
 const LEVEL_TEXT = { LOW: "LOW RISK", MEDIUM: "MEDIUM RISK", HIGH: "HIGH RISK", CRITICAL: "CRITICAL RISK" };
@@ -51,7 +58,30 @@ export async function gatherEvidence(rawQuery, additionalContext = "") {
     $or: [{ slug }, { aliases: slug }, { name: new RegExp(`^${escapeRegex(parsed.subject)}$`, "i") }],
   }).lean();
 
-  const fileEntity = lookupSecEntity(parsed.subject);
+  let fileEntity = lookupSecEntity(parsed.subject);
+
+  // A Ghanaian government domain is an authority whether or not it is listed:
+  // sec.gov.gh must never be scored as an investment.
+  if (parsed.kind === "link" && !fileEntity) {
+    if (isGovernmentDomain(parsed.host)) {
+      fileEntity =
+        lookupAuthorityByDomain(parsed.host) ||
+        {
+          name: parsed.host,
+          status: "authority",
+          aliases: [],
+          redFlags: [],
+          category: "other",
+          source: "Government of Ghana",
+          role: "Ghanaian government website",
+          note: "This is a government domain, not an investment offer.",
+        };
+      console.log(`[risk] ${parsed.host} is a government domain -- treating as an authority`);
+    }
+  } else if (parsed.kind === "link" && fileEntity?.status !== "authority") {
+    const byDomain = lookupAuthorityByDomain(parsed.host);
+    if (byDomain) fileEntity = byDomain;
+  }
 
   // Only curated records are authoritative. Records the engine cached itself
   // carry status "unknown" and must not suppress the live lookups.
@@ -69,12 +99,18 @@ export async function gatherEvidence(rawQuery, additionalContext = "") {
     dateAdded: curated?.dateAdded || fileEntity?.dateAdded || null,
     aliases: curated?.aliases || [],
     curatedRedFlags: curated?.redFlags || [],
+    role: curated?.role || null,
+    website: curated?.website || null,
+    contact: curated?.contact || null,
     note:
-      curated?.status === "sandbox"
-        ? "Provisional approval only under the SEC Ghana virtual asset sandbox (Act 1154). This is NOT a full licence."
-        : curated?.status === "unregistered" || !curated
-          ? "Not found on the SEC Ghana licensed list, sandbox list, or public warning lists."
-          : null,
+      curated?.status === "authority"
+        ? curated.note ||
+          `${curated.name} is a Ghanaian regulator or government body, NOT an investment product. It must not be risk-scored as one.`
+        : curated?.status === "sandbox"
+          ? "Provisional approval only under the SEC Ghana virtual asset sandbox (Act 1154). This is NOT a full licence."
+          : curated?.status === "unregistered" || !curated
+            ? "Not found on the SEC Ghana licensed list, sandbox list, or public warning lists."
+            : null,
   };
 
   /* --- GoPlus: contract security (0x addresses only) -------------- */
@@ -89,9 +125,10 @@ export async function gatherEvidence(rawQuery, additionalContext = "") {
     (!curatedCategory && (parsed.kind === "token" || mentionsCrypto(parsed.query)));
 
   const flagged = curated?.status === "blacklisted";
+  const isAuthority = curated?.status === "authority";
   const tokenSubject = goPlusData?.tokenSymbol || parsed.subject;
   const shouldLookupToken =
-    !flagged && parsed.kind !== "link" && (hintsCrypto || !curated) && (!isContract || Boolean(goPlusData));
+    !flagged && !isAuthority && parsed.kind !== "link" && (hintsCrypto || !curated) && (!isContract || Boolean(goPlusData));
 
   let coinGeckoData = shouldLookupToken ? await lookupToken(tokenSubject) : null;
 
@@ -195,7 +232,14 @@ export function scoreWithRules(evidence) {
   let statusLabel;
   let citation = "";
 
-  if (status === "licensed") {
+  if (status === "authority") {
+    // Not an investment at all. Scoring a regulator for risk is a category
+    // error, and telling someone SEC Ghana is a scam would be actively harmful.
+    statusLabel = `${sec.role || "Regulator / government body"} — not an investment product`;
+    citation = "Securities Industry Act, 2016 (Act 929)";
+    greenFlags.push(`${sec.name} is an official Ghanaian authority, not a scheme accepting your money`);
+    factors.status = 0;
+  } else if (status === "licensed") {
     statusLabel = sec.licenseType ? `Licensed by SEC Ghana as a ${sec.licenseType}` : "Licensed by SEC Ghana";
     citation = "Securities Industry Act, 2016 (Act 929)";
     greenFlags.push(`On the SEC Ghana licensed list${sec.licenseType ? ` as a ${sec.licenseType}` : ""}`);
@@ -245,7 +289,14 @@ export function scoreWithRules(evidence) {
   } else if (ageDays != null) {
     factors.age = 0;
     greenFlags.push(`Trading for about ${Math.floor(ageDays / 365)} years`);
-  } else if (establishedToken || status === "licensed" || status === "sandbox" || token || isContract) {
+  } else if (
+    establishedToken ||
+    status === "authority" ||
+    status === "licensed" ||
+    status === "sandbox" ||
+    token ||
+    isContract
+  ) {
     factors.age = 0;
   } else {
     factors.age = 1;
@@ -314,7 +365,7 @@ export function scoreWithRules(evidence) {
     // firms), not tokens, so a missing CoinGecko listing means nothing there.
     factors.presence += 1.5;
     redFlags.push("Token does not exist on CoinGecko — no real market data behind it");
-  } else if (queryKind === "link") {
+  } else if (queryKind === "link" && status !== "authority") {
     const tld = secData.suspiciousTlds.find((t) => host.endsWith(t));
     if (tld) {
       factors.presence += 1;
@@ -333,6 +384,8 @@ export function scoreWithRules(evidence) {
   score += factors.presence;
 
   /* --- Overrides and clamping ------------------------------------- */
+  // A regulator or government body is never a risk verdict.
+  if (status === "authority") score = Math.min(score, 1);
   if (status === "licensed" && reportCount < 3) score = Math.min(score, 2.5);
   // Provisional approval is not a licence, so a sandbox VASP never shows green:
   // a green badge would read as "SEC approved" to someone about to send money.
@@ -370,6 +423,7 @@ export function scoreWithRules(evidence) {
       status,
       isCrypto: treatAsCrypto,
       honeypot: contract?.isHoneypot,
+      sec,
     }),
     scoreBreakdown: {
       licensing: Number(((factors.status / 5) * 40).toFixed(1)),
@@ -388,8 +442,13 @@ export function scoreWithRules(evidence) {
  * Step 3 -- orchestrate: gather, let the AI decide, fall back to rules
  * ------------------------------------------------------------------ */
 
-export async function runRiskCheck(rawQuery, { additionalContext = "", callProvider } = {}) {
+export async function runRiskCheck(
+  rawQuery,
+  { additionalContext = "", callProvider, spoofingDetection = null, injectedFlags = [], userEvidence = null } = {}
+) {
   const evidence = await gatherEvidence(rawQuery, additionalContext);
+  evidence.spoofingDetection = spoofingDetection;
+  evidence.evidence = userEvidence;
 
   // Always compute the rule-based result: it is the fallback, and its factor
   // breakdown is useful for debugging even when the AI answers.
@@ -404,6 +463,21 @@ export async function runRiskCheck(rawQuery, { additionalContext = "", callProvi
 
   const result = normalize({ chosen, rules, evidence, analyzedBy, ai });
 
+  // Flags from name verification are facts we established before the analysis
+  // ran, so they go in regardless of what the analyzer said.
+  if (injectedFlags.length) applyInjectedFlags(result, injectedFlags, spoofingDetection);
+  result.spoofingDetection = spoofingDetection;
+  result.evidenceCount = userEvidence?.evidenceCount || 0;
+  result.needsMoreInfo = shouldAskForEvidence(result, evidence);
+  result.canRefineWithEvidence = canRefineWithEvidence(result, evidence);
+
+  // Be explicit that an unverifiable verdict rests on the absence of a
+  // registration, not on evidence of wrongdoing.
+  if (result.needsMoreInfo || result.canRefineWithEvidence) {
+    result.noDataNotice =
+      "No SEC Ghana record, market data or community report exists for this name. That absence is itself a warning under Act 929, but it is not proof of fraud — send evidence and I can check properly.";
+  }
+
   console.log(
     `[risk] "${evidence.query}" -> ${result.riskScore}/10 ${result.riskVerdict} ` +
       `(by ${analyzedBy}${ai?.fromCache ? ", cached" : ""}, status: ${result.status}, reports: ${result.reportCount})`
@@ -411,6 +485,79 @@ export async function runRiskCheck(rawQuery, { additionalContext = "", callProvi
 
   await cacheEntity(result, evidence);
   return result;
+}
+
+/**
+ * Merge name-verification flags into the finished result, raising the score if
+ * an impersonation finding outranks what the analyzer produced.
+ */
+function applyInjectedFlags(result, injectedFlags, spoofingDetection) {
+  const existing = new Set(result.redFlags.map((f) => f.toLowerCase()));
+  const added = injectedFlags.filter((f) => f.flag && !existing.has(f.flag.toLowerCase()));
+  if (!added.length) return;
+
+  result.redFlagsDetailed = [...added, ...result.redFlagsDetailed];
+  result.redFlags = result.redFlagsDetailed.map((f) => f.flag);
+
+  // Impersonating a blacklisted entity is as serious as being it.
+  const floor = spoofingDetection?.matchedEntityStatus === "blacklisted" ? 8 : added.some((f) => f.severity === "high") ? 6 : 0;
+
+  if (floor && result.riskScore < floor) {
+    console.log(`[risk] name-spoofing finding raises ${result.riskScore} to ${floor}`);
+    result.riskScore = floor;
+    const { riskVerdict, riskColor } = verdictForScore(floor);
+    result.riskVerdict = riskVerdict;
+    result.riskColor = riskColor;
+    result.riskLevel = LEVEL_TEXT[riskVerdict];
+    result.emoji = EMOJI[riskColor];
+  }
+}
+
+/**
+ * Did any source actually know this entity? When nothing did, the verdict rests
+ * on the name alone -- which is exactly when the user's own screenshots help.
+ */
+function hasNoCorroboratingData(result, evidence) {
+  return (
+    result.evidenceCount === 0 &&
+    !evidence.secData.found &&
+    !evidence.coinGeckoData &&
+    !evidence.goPlusData &&
+    evidence.communityReports.count === 0 &&
+    evidence.queryKind !== "contract"
+  );
+}
+
+/**
+ * Should we stop and ask for screenshots instead of giving a verdict?
+ *
+ * Only when the verdict would be genuinely useless -- nothing known AND the
+ * score landed in the uncertain middle. Note the AI, following the Act 929
+ * rule in the system prompt, usually scores an unregistered entity high rather
+ * than middling, so most no-data cases take the "refine" path below instead:
+ * the user gets the report first, then the offer.
+ */
+function shouldAskForEvidence(result, evidence) {
+  if (!hasNoCorroboratingData(result, evidence)) return false;
+
+  const uncertain = result.riskScore >= 4 && result.riskScore <= 6;
+  if (!uncertain) return false;
+
+  console.log(`[risk] "${evidence.query}" is unverifiable at ${result.riskScore}/10 -- asking the user for evidence`);
+  return true;
+}
+
+/**
+ * Nothing known, but the model still returned a decisive score. Report it, then
+ * offer to take evidence -- a verdict reasoned from a name alone should be
+ * improvable, and the user should be told that is what it is.
+ */
+function canRefineWithEvidence(result, evidence) {
+  if (result.needsMoreInfo) return false; // already asking
+  if (!hasNoCorroboratingData(result, evidence)) return false;
+
+  console.log(`[risk] "${evidence.query}" scored ${result.riskScore}/10 on the name alone -- offering evidence flow`);
+  return true;
 }
 
 /** Shapes either source into the single contract the API and bot consume. */
@@ -502,6 +649,8 @@ async function cacheEntity(result, evidence) {
  * ------------------------------------------------------------------ */
 
 function summaryFor({ name, status, riskVerdict, reportCount }) {
+  if (status === "authority")
+    return `${name} is a Ghanaian regulator or government body, not an investment you can put money into.`;
   if (status === "blacklisted") return `${name} is on a SEC Ghana public warning list and is not licensed to take your money.`;
   if (status === "revoked") return `${name} no longer holds a valid SEC Ghana licence.`;
   if (status === "licensed") return `${name} is licensed by SEC Ghana and shows no community complaints.`;
@@ -527,7 +676,12 @@ function severityFor(status, flag) {
   return "low";
 }
 
-function recommendationFor({ verdict, name, status, isCrypto, honeypot }) {
+function recommendationFor({ verdict, name, status, isCrypto, honeypot, sec }) {
+  if (status === "authority") {
+    const where = sec?.website ? ` at ${sec.website}` : "";
+    const phone = sec?.contact ? ` or on ${sec.contact}` : "";
+    return `${name} is an official body, not an investment. ${sec?.note || ""} If someone claims to be collecting money on its behalf, that is a scam -- verify directly${where}${phone}.`.replace(/s+/g, " ").trim();
+  }
   if (honeypot) {
     return `Do not buy this token. The contract is built so you can buy but cannot sell — your money would be unrecoverable.`;
   }

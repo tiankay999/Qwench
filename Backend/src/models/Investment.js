@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-export const STATUSES = ["licensed", "sandbox", "blacklisted", "revoked", "unknown"];
+export const STATUSES = ["authority", "licensed", "sandbox", "blacklisted", "revoked", "unknown"];
 export const CATEGORIES = ["crypto", "forex", "ponzi", "investment", "real-estate", "other"];
 
 const investmentSchema = new mongoose.Schema(

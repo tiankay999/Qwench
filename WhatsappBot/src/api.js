@@ -49,3 +49,44 @@ export async function pingBackend() {
     return false;
   }
 }
+
+/** POST /api/verify-name -- anti-spoofing check that runs before a risk check */
+export async function verifyName(query) {
+  console.log(`[api] POST /api/verify-name  query="${query}"`);
+  const { data } = await client.post("/api/verify-name", { query });
+  return data.data;
+}
+
+/** POST /api/check with spoofing context and/or user-supplied evidence */
+export async function checkInvestmentWithContext(query, { spoofingDetection, injectedFlags, evidence } = {}) {
+  console.log(
+    `[api] POST /api/check  query="${query}"` +
+      `${spoofingDetection ? " +spoof" : ""}${evidence?.evidenceCount ? ` +${evidence.evidenceCount} evidence` : ""}`
+  );
+  const { data } = await client.post("/api/check", {
+    query,
+    channel: "whatsapp",
+    spoofingDetection,
+    injectedFlags,
+    evidence,
+  });
+  return data.data;
+}
+
+/** POST /api/evidence/image -- analyze a forwarded screenshot */
+export async function analyzeImageEvidence(base64, mimeType, entityName) {
+  console.log(`[api] POST /api/evidence/image  ${(base64.length / 1365).toFixed(0)}KB for "${entityName}"`);
+  const { data } = await client.post(
+    "/api/evidence/image",
+    { base64, mimeType, entityName },
+    { timeout: 60000 }
+  );
+  return data.data;
+}
+
+/** POST /api/evidence/url -- fetch and analyze a link */
+export async function analyzeUrlEvidence(url, entityName) {
+  console.log(`[api] POST /api/evidence/url  ${url}`);
+  const { data } = await client.post("/api/evidence/url", { url, entityName }, { timeout: 60000 });
+  return data.data;
+}

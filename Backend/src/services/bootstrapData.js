@@ -1,5 +1,6 @@
 import Investment from "../models/Investment.js";
-import { blacklistedEntities, licensedEntities, sandboxEntities, slugify } from "./secData.js";
+import { invalidateNameIndex } from "./nameVerifier.js";
+import { authorityEntities, blacklistedEntities, licensedEntities, sandboxEntities, slugify } from "./secData.js";
 
 /**
  * Loads the SEC Ghana lists into MongoDB on server start.
@@ -10,6 +11,18 @@ import { blacklistedEntities, licensedEntities, sandboxEntities, slugify } from 
  */
 export async function bootstrapSecData() {
   const docs = [
+    ...authorityEntities.map((e) => ({
+      name: e.name,
+      slug: slugify(e.name),
+      aliases: dedupe([...(e.aliases || []), slugify(e.name)]),
+      status: "authority",
+      source: e.source,
+      licenseType: e.role || "Regulator",
+      category: "other",
+      riskScore: 0.5,
+      redFlags: [],
+      dateAdded: new Date(),
+    })),
     ...licensedEntities.map((e) => ({
       name: e.name,
       slug: slugify(e.name),
@@ -59,10 +72,13 @@ export async function bootstrapSecData() {
   try {
     const res = await Investment.bulkWrite(ops, { ordered: false });
     console.log(
-      `[bootstrap] SEC Ghana register loaded: ${licensedEntities.length} licensed, ` +
+      `[bootstrap] SEC Ghana register loaded: ${authorityEntities.length} authorities, ${licensedEntities.length} licensed, ` +
         `${sandboxEntities.length} sandbox, ${blacklistedEntities.length} blacklisted ` +
         `(${res.upsertedCount} new, ${res.modifiedCount} updated)`
     );
+
+    // The fuzzy-match index is built from these rows, so rebuild it next use.
+    invalidateNameIndex();
   } catch (err) {
     console.error(`[bootstrap] failed to load SEC Ghana register: ${err.message}`);
   }

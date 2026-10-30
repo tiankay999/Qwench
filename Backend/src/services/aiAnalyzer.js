@@ -76,6 +76,7 @@ RESPONSE FORMAT (strict JSON):
 }
 
 RULES:
+- If the SEC Ghana Database Result has status "authority", the subject is a regulator, government body or market infrastructure (SEC Ghana, Bank of Ghana, EOCO, NPRA, NIC, Ghana Stock Exchange) — NOT an investment. riskScore MUST be 1.0 or less, verdict "LOW", secStatus.status "licensed", and the summary must explain what the body does and that it does not take investments from the public. Do not invent red flags for it.
 - If entity is SEC Ghana blacklisted → riskScore MUST be 8.0+ and verdict MUST be "CRITICAL"
 - If entity is SEC Ghana licensed → riskScore should reflect that but still check other factors
 - If entity is in the sandbox → note it's provisional, not fully licensed
@@ -240,11 +241,12 @@ export function aiStatus() {
 
 /** Builds the user message from the raw evidence gathered by the risk engine. */
 export function buildUserPrompt(input) {
-  const { query, secData, coinGeckoData, goPlusData, communityReports, additionalContext } = input;
+  const { query, secData, coinGeckoData, goPlusData, communityReports, additionalContext, spoofingDetection, evidence } =
+    input;
 
   const comments = (communityReports?.recentComments || []).filter(Boolean);
 
-  return `Analyze this investment entity for risk. Here is the data collected from our sources:
+  let prompt = `Analyze this investment entity for risk. Here is the data collected from our sources:
 
 Entity searched: ${query}
 
@@ -259,8 +261,37 @@ ${json(goPlusData)}
 
 Community Reports:
 ${communityReports?.count ?? 0} reports filed. Recent comments: ${comments.length ? comments.map((c) => `"${c}"`).join("; ") : "none"}
+`;
 
-${additionalContext ? `Additional context: ${additionalContext}\n` : ""}Produce your risk assessment.`;
+  if (spoofingDetection?.isSuspectedSpoof) {
+    prompt += `
+Name Spoofing Detection:
+${json(spoofingDetection)}
+
+Treat this as significant: the searched name is NOT the registered name of the entity it resembles. If the resembled entity is blacklisted, adding or altering words does not make this a different company. If the resembled entity is licensed or in the sandbox, impersonating it is itself a fraud indicator.
+`;
+  }
+
+  if (evidence && evidence.evidenceCount > 0) {
+    prompt += `
+Evidence Supplied By The User (${evidence.evidenceCount} item(s)):
+
+Screenshots / images analyzed:
+${json(evidence.imageAnalyses)}
+
+Websites fetched and analyzed:
+${json(evidence.urlAnalyses)}
+
+Text the user forwarded:
+${json(evidence.textEvidence)}
+
+This evidence came directly from the person asking, so weigh it heavily. Base your verdict on what it actually shows -- if it proves fraud indicators, say so plainly; if it is inconclusive, say that instead of guessing.
+`;
+  }
+
+  if (additionalContext) prompt += `\nAdditional context: ${additionalContext}\n`;
+
+  return `${prompt}\nProduce your risk assessment.`;
 }
 
 function json(value) {
@@ -272,24 +303,29 @@ function json(value) {
  * Providers
  * ------------------------------------------------------------------ */
 
-async function callGroq({ model, key, timeoutMs }, userPrompt) {
+// `images` is an optional array of { base64, mimeType } for the vision calls
+// used by the evidence flow. Text-only calls pass nothing and behave as before.
+
+async function callGroq({ model, key, timeoutMs }, userPrompt, system = SYSTEM_PROMPT, images = []) {
   const { default: Groq } = await import("groq-sdk");
   const client = new Groq({ apiKey: key, timeout: timeoutMs });
 
   const res = await client.chat.completions.create({
     model,
     temperature: 0.2,
-    response_format: { type: "json_object" },
+    // Groq's vision models reject response_format, so only ask for JSON mode
+    // on text-only calls.
+    ...(images.length ? {} : { response_format: { type: "json_object" } }),
     messages: [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: userPrompt },
+      { role: "system", content: system },
+      { role: "user", content: images.length ? openAiParts(userPrompt, images) : userPrompt },
     ],
   });
 
   return res.choices?.[0]?.message?.content || "";
 }
 
-async function callOpenAI({ model, key, timeoutMs }, userPrompt) {
+async function callOpenAI({ model, key, timeoutMs }, userPrompt, system = SYSTEM_PROMPT, images = []) {
   const { default: OpenAI } = await import("openai");
   const client = new OpenAI({ apiKey: key, timeout: timeoutMs });
 
@@ -298,29 +334,44 @@ async function callOpenAI({ model, key, timeoutMs }, userPrompt) {
     temperature: 0.2,
     response_format: { type: "json_object" },
     messages: [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: userPrompt },
+      { role: "system", content: system },
+      { role: "user", content: images.length ? openAiParts(userPrompt, images) : userPrompt },
     ],
   });
 
   return res.choices?.[0]?.message?.content || "";
 }
 
-async function callGemini({ model, key, timeoutMs }, userPrompt) {
+function openAiParts(text, images) {
+  return [
+    { type: "text", text },
+    ...images.map((img) => ({
+      type: "image_url",
+      image_url: { url: `data:${img.mimeType};base64,${img.base64}` },
+    })),
+  ];
+}
+
+async function callGemini({ model, key, timeoutMs }, userPrompt, system = SYSTEM_PROMPT, images = []) {
   const { GoogleGenerativeAI } = await import("@google/generative-ai");
   const client = new GoogleGenerativeAI(key);
 
   const genModel = client.getGenerativeModel(
     {
       model,
-      systemInstruction: SYSTEM_PROMPT,
+      systemInstruction: system,
       // responseMimeType makes Gemini emit JSON rather than prose.
       generationConfig: { temperature: 0.2, responseMimeType: "application/json" },
     },
     { timeout: timeoutMs }
   );
 
-  const res = await genModel.generateContent(userPrompt);
+  const parts = [
+    { text: userPrompt },
+    ...images.map((img) => ({ inlineData: { mimeType: img.mimeType, data: img.base64 } })),
+  ];
+
+  const res = await genModel.generateContent(parts);
   const text = res.response.text();
 
   // A safety block returns no text, which would otherwise look like an empty reply.
@@ -333,6 +384,45 @@ async function callGemini({ model, key, timeoutMs }, userPrompt) {
 }
 
 const PROVIDERS = { groq: callGroq, openai: callOpenAI, gemini: callGemini };
+
+/* ------------------------------------------------------------------ *
+ * Shared JSON prompt runner -- used by the image and URL analyzers so the
+ * provider plumbing lives in one place.
+ * ------------------------------------------------------------------ */
+
+// Gemini and OpenAI read images on their normal models. Groq needs a separate
+// vision model: the llama-3.2-*-vision-preview models were retired, so Llama 4
+// Scout is the current default. Override with AI_VISION_MODEL.
+const DEFAULT_VISION_MODELS = {
+  gemini: null, // same model handles text and images
+  openai: "gpt-4o-mini",
+  groq: "meta-llama/llama-4-scout-17b-16e-instruct",
+};
+
+export function visionConfig() {
+  const cfg = config();
+  const override = (process.env.AI_VISION_MODEL || "").trim();
+  const model = override || DEFAULT_VISION_MODELS[cfg.provider] || cfg.model;
+  return { ...cfg, model };
+}
+
+/**
+ * Run one JSON-returning prompt against the configured provider.
+ * Returns the parsed object, or throws.
+ */
+export async function runJsonPrompt({ system, user, images = [], vision = false, callProvider } = {}) {
+  const cfg = vision ? visionConfig() : config();
+  if (!cfg.enabled && !callProvider) throw new Error(`no API key for provider "${cfg.provider}"`);
+
+  const fn = callProvider || PROVIDERS[cfg.provider];
+  if (!fn) throw new Error(`unknown AI_PROVIDER "${cfg.provider}"`);
+
+  const started = Date.now();
+  const raw = await fn(cfg, user, system, images);
+  const parsed = extractJson(raw);
+
+  return { parsed, raw, latencyMs: Date.now() - started, provider: cfg.provider, model: cfg.model };
+}
 
 /* ------------------------------------------------------------------ *
  * Response parsing and validation
@@ -384,6 +474,14 @@ export function validateAssessment(parsed, evidence) {
     corrections.push("riskScore missing or not a number, defaulted to 5");
   }
   score = Math.max(0, Math.min(10, score));
+
+  // Hard rule: a regulator or government body is not an investment and is
+  // never given a risk verdict. Qwench tells people to verify with SEC Ghana,
+  // so reporting SEC Ghana as a scam would undermine the whole product.
+  if (status === "authority" && score > 1) {
+    corrections.push(`model scored the authority/regulator ${score}, lowered to 1.0`);
+    score = 1;
+  }
 
   // Hard rule: a blacklisted entity is never scored below 8.
   if (status === "blacklisted" && score < 8) {
@@ -508,22 +606,32 @@ export async function analyzeWithAI(evidence, { callProvider } = {}) {
     return null;
   }
 
-  const slug = evidence.slug || evidence.query;
+  const baseSlug = evidence.slug || evidence.query;
+
+  // The cache key has to reflect the inputs, not just the name. A plain check
+  // and a spoof-flagged check of the same name are different questions, and
+  // user-supplied evidence is specific to that person, so it is never cached.
+  const hasEvidence = (evidence.evidence?.evidenceCount || 0) > 0;
+  const slug = evidence.spoofingDetection?.isSuspectedSpoof ? `${baseSlug}::spoof` : baseSlug;
 
   /* --- 24h cache ------------------------------------------------- */
-  const cached = await AiAnalysis.findOne({
-    querySlug: slug,
-    ok: true,
-    expiresAt: { $gt: new Date() },
-  })
-    .sort({ createdAt: -1 })
-    .lean()
-    .catch(() => null);
+  if (!hasEvidence) {
+    const cached = await AiAnalysis.findOne({
+      querySlug: slug,
+      ok: true,
+      expiresAt: { $gt: new Date() },
+    })
+      .sort({ createdAt: -1 })
+      .lean()
+      .catch(() => null);
 
-  if (cached?.output?.riskScore != null) {
-    const ageH = ((Date.now() - new Date(cached.createdAt).getTime()) / 3_600_000).toFixed(1);
-    console.log(`[ai] cache hit for "${slug}" (${ageH}h old) -- skipping ${cached.provider} call`);
-    return { ...cached.output, fromCache: true, provider: cached.provider, model: cached.model };
+    if (cached?.output?.riskScore != null) {
+      const ageH = ((Date.now() - new Date(cached.createdAt).getTime()) / 3_600_000).toFixed(1);
+      console.log(`[ai] cache hit for "${slug}" (${ageH}h old) -- skipping ${cached.provider} call`);
+      return { ...cached.output, fromCache: true, provider: cached.provider, model: cached.model };
+    }
+  } else {
+    console.log(`[ai] evidence supplied for "${baseSlug}" -- bypassing cache`);
   }
 
   /* --- Call the model -------------------------------------------- */
@@ -564,7 +672,9 @@ export async function analyzeWithAI(evidence, { callProvider } = {}) {
       ok: true,
       latencyMs,
       corrections,
-      expiresAt: new Date(Date.now() + CACHE_TTL_MS),
+      // An evidence-based verdict is logged for audit but never cached: it is
+      // specific to what that one person sent us.
+      expiresAt: hasEvidence ? null : new Date(Date.now() + CACHE_TTL_MS),
     }).catch((err) => console.warn(`[ai] could not log analysis: ${err.message}`));
 
     return { ...assessment, fromCache: false, provider: cfg.provider, model: cfg.model, corrections };

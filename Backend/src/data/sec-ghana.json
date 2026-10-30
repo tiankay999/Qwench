@@ -137,6 +137,66 @@
     { "name": "Stanbic Investment Management Services", "aliases": ["stanbic investment management", "sims", "stanbic ims"], "licenseType": "Fund Manager", "source": "SEC Ghana" }
   ],
 
+  "_authoritiesNote": "Regulators, government bodies and market infrastructure. These are NOT investment products and must never be risk-scored as if they were -- Qwench tells people to verify with SEC Ghana, so returning a scam verdict for SEC Ghana itself would be self-defeating.",
+  "authorities": [
+    {
+      "name": "Securities and Exchange Commission Ghana",
+      "aliases": ["sec", "sec ghana", "sec gh", "securities and exchange commission", "secghana", "sec.gov.gh"],
+      "role": "Securities regulator for Ghana",
+      "website": "sec.gov.gh",
+      "contact": "0800100065",
+      "note": "This is the regulator Qwench checks entities against. It does not sell investments."
+    },
+    {
+      "name": "Bank of Ghana",
+      "aliases": ["bog", "bank of ghana", "central bank of ghana", "bog.gov.gh"],
+      "role": "Central bank and banking regulator",
+      "website": "bog.gov.gh",
+      "contact": "0302666902",
+      "note": "Licenses banks and payment providers. It does not sell investments to the public."
+    },
+    {
+      "name": "Economic and Organised Crime Office",
+      "aliases": ["eoco", "economic and organised crime office", "economic and organized crime office", "eoco.gov.gh"],
+      "role": "Financial crime investigation agency",
+      "website": "eoco.gov.gh",
+      "contact": "0302747777",
+      "note": "Investigates financial crime. Report fraud here, do not invest with them."
+    },
+    {
+      "name": "National Pensions Regulatory Authority",
+      "aliases": ["npra", "national pensions regulatory authority", "npra.gov.gh"],
+      "role": "Pensions regulator",
+      "website": "npra.gov.gh",
+      "contact": "0302611123",
+      "note": "Regulates pension schemes and trustees."
+    },
+    {
+      "name": "National Insurance Commission",
+      "aliases": ["nic", "national insurance commission", "nicgh", "nic.gov.gh"],
+      "role": "Insurance regulator",
+      "website": "nicgh.org",
+      "contact": "0302238301",
+      "note": "Regulates insurance companies in Ghana."
+    },
+    {
+      "name": "Ghana Stock Exchange",
+      "aliases": ["gse", "ghana stock exchange", "gse.com.gh"],
+      "role": "National securities exchange",
+      "website": "gse.com.gh",
+      "contact": "0302669908",
+      "note": "The licensed exchange itself. You invest through a licensed broker, not the exchange directly."
+    },
+    {
+      "name": "Financial Intelligence Centre Ghana",
+      "aliases": ["fic", "financial intelligence centre", "fic.gov.gh"],
+      "role": "Anti-money-laundering authority",
+      "website": "fic.gov.gh",
+      "contact": "0302906000",
+      "note": "Receives suspicious transaction reports."
+    }
+  ],
+
   "_sandboxNote": "Virtual Asset Service Providers with PROVISIONAL approval under the SEC Ghana sandbox (Virtual Asset Service Providers Act, 2025 / Act 1154). Provisional approval is NOT a full licence and must never be presented as one.",
   "sandbox": [
     { "name": "AFRICOIN", "aliases": ["africoin"] },

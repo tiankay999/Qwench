@@ -89,30 +89,58 @@ RULES:
  * Config
  * ------------------------------------------------------------------ */
 
+const DEFAULT_PROVIDER = "gemini";
+
 const DEFAULT_MODELS = {
+  gemini: "gemini-2.0-flash",
   groq: "llama-3.3-70b-versatile",
   openai: "gpt-4o-mini",
-  gemini: "gemini-2.0-flash",
 };
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 function config() {
-  const provider = (process.env.AI_PROVIDER || "groq").toLowerCase();
+  const provider = (process.env.AI_PROVIDER || DEFAULT_PROVIDER).toLowerCase();
   const key =
-    provider === "groq"
-      ? process.env.GROQ_API_KEY
-      : provider === "openai"
-        ? process.env.OPENAI_API_KEY
-        : process.env.GEMINI_API_KEY;
+    provider === "gemini"
+      ? process.env.GEMINI_API_KEY
+      : provider === "groq"
+        ? process.env.GROQ_API_KEY
+        : process.env.OPENAI_API_KEY;
 
   return {
     provider,
-    model: process.env.AI_MODEL || DEFAULT_MODELS[provider] || DEFAULT_MODELS.groq,
+    model: resolveModel(provider),
     key,
     enabled: Boolean(key),
     timeoutMs: Number(process.env.AI_TIMEOUT_MS) || 25000,
   };
+}
+
+// Each provider only serves its own models, so a model name left behind after
+// switching AI_PROVIDER would 404 on every call and silently drop us to the
+// rule-based fallback. Catch that here and say so.
+const MODEL_PATTERNS = {
+  gemini: /^(gemini|models\/gemini)/i,
+  groq: /^(llama|mixtral|gemma|qwen|deepseek|kimi|openai\/)/i,
+  openai: /^(gpt-|o\d|chatgpt)/i,
+};
+
+function resolveModel(provider) {
+  const fallback = DEFAULT_MODELS[provider] || DEFAULT_MODELS[DEFAULT_PROVIDER];
+  const configured = (process.env.AI_MODEL || "").trim();
+  if (!configured) return fallback;
+
+  const pattern = MODEL_PATTERNS[provider];
+  if (pattern && !pattern.test(configured)) {
+    console.warn(
+      `[ai] AI_MODEL "${configured}" does not look like a ${provider} model -- using "${fallback}" instead. ` +
+        `Update AI_MODEL in Backend/.env to silence this.`
+    );
+    return fallback;
+  }
+
+  return configured;
 }
 
 export function aiStatus() {
@@ -192,18 +220,30 @@ async function callOpenAI({ model, key, timeoutMs }, userPrompt) {
   return res.choices?.[0]?.message?.content || "";
 }
 
-async function callGemini({ model, key }, userPrompt) {
+async function callGemini({ model, key, timeoutMs }, userPrompt) {
   const { GoogleGenerativeAI } = await import("@google/generative-ai");
   const client = new GoogleGenerativeAI(key);
 
-  const genModel = client.getGenerativeModel({
-    model,
-    systemInstruction: SYSTEM_PROMPT,
-    generationConfig: { temperature: 0.2, responseMimeType: "application/json" },
-  });
+  const genModel = client.getGenerativeModel(
+    {
+      model,
+      systemInstruction: SYSTEM_PROMPT,
+      // responseMimeType makes Gemini emit JSON rather than prose.
+      generationConfig: { temperature: 0.2, responseMimeType: "application/json" },
+    },
+    { timeout: timeoutMs }
+  );
 
   const res = await genModel.generateContent(userPrompt);
-  return res.response.text();
+  const text = res.response.text();
+
+  // A safety block returns no text, which would otherwise look like an empty reply.
+  if (!text) {
+    const reason = res.response.promptFeedback?.blockReason || "no content returned";
+    throw new Error(`Gemini returned no text (${reason})`);
+  }
+
+  return text;
 }
 
 const PROVIDERS = { groq: callGroq, openai: callOpenAI, gemini: callGemini };

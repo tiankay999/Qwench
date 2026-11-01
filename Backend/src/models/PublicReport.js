@@ -46,6 +46,12 @@ publicReportSchema.index({ reviewStatus: 1 });
 publicReportSchema.index({ schemeName: "text" });
 publicReportSchema.index({ "identifiers.valueHash": 1 });
 publicReportSchema.index({ createdAt: -1 });
-publicReportSchema.index({ legacyId: 1 }, { unique: true, sparse: true });
+// Partial, not sparse: the field defaults to null, and a sparse index still
+// indexes an explicit null — so a second row with no legacy id collided and
+// the write was lost. Only real ObjectIds are indexed here.
+publicReportSchema.index(
+  { legacyId: 1 },
+  { unique: true, partialFilterExpression: { legacyId: { $type: "objectId" } } }
+);
 
 export default mongoose.model("PublicReport", publicReportSchema);

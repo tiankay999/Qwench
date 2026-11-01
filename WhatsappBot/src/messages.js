@@ -84,71 +84,91 @@ const STATUS_ICON = {
 
 const SEVERITY_ICON = { critical: "🔴", high: "🟠", medium: "🟡", low: "⚪" };
 
-/** Build the WhatsApp risk report message from an /api/check result. */
+/**
+ * Build the WhatsApp report from an /api/check evidence result.
+ *
+ * There is no score, verdict, colour or recommendation here. The reply states
+ * the entity's legal standing, what evidence sits behind it, who published
+ * that evidence, and what the person should go and ask. Every line comes from
+ * a fixed template -- none of it is generated.
+ */
+const STATE_HEADER = {
+  named_in_notice: "❌ *Named in a regulator notice*",
+  licensed: "✅ *Licensed by SEC Ghana*",
+  sandbox: "🧪 *Provisional sandbox approval*",
+  registered: "🏛️ *Registered body*",
+  no_record: "⚠️ *No record found*",
+};
+
+const STATE_MEANING = {
+  named_in_notice: "A regulator has published a warning naming this. It is not licensed to take your money.",
+  licensed: "This is a legal status: the entity holds a current SEC Ghana licence. It is not a warning.",
+  sandbox:
+    "This is a legal status, not a warning — but sandbox approval is provisional (12 months), not a full licence.",
+  registered: "This is an official body, not an investment you can put money into.",
+  no_record: "I have no record of this. That does not mean it is safe, and it does not mean it is unsafe.",
+};
+
+const TIER_MEANING = {
+  1: "Published by a regulator",
+  2: "Confirmed by a member institution",
+  3: "Corroborated by several independent reports",
+  4: "Rising number of checks — being watched",
+};
+
+const ACTION_LINE = {
+  warn: "🚩 Treat this as a warning. Do not send money.",
+  warn_or_confirmation_call: "📞 Confirm directly with the business through a number you already trust.",
+  internal_review: "🔍 Under review — no public finding yet.",
+  watch: "👀 Being watched. Nothing confirmed.",
+  none: "",
+};
+
 export function formatRiskReport(r, { evidenceSummary = "", legitMatch = null } = {}) {
   const lines = [];
 
-  lines.push(r.evidenceCount ? "🛡️ *Qwench Risk Report — Evidence-Based*" : "🛡️ *Qwench Risk Report*");
-  lines.push(`📌 *${r.name}*`);
+  lines.push("🛡️ *Qwench Check*");
+  if (r.entity) lines.push(`📌 *${r.entity}*`);
   lines.push("");
-  lines.push(`Risk Score: ${r.emoji} ${r.riskScore.toFixed(1)}/10 — ${r.riskLevel}`);
 
-  if (r.summary) {
-    lines.push("");
-    lines.push(`_${r.summary}_`);
+  // "No record" must not be said when we actually hold evidence. An entity we
+  // recognise, or any evidence tier, means the plain no-record wording would
+  // contradict the rest of the message.
+  if (r.state === "no_record" && (r.match || r.tier)) {
+    lines.push("⚠️ *No current regulatory record*");
+    lines.push(
+      r.tier
+        ? "No regulator has published a notice naming this, but there is other evidence against it — see below."
+        : "I know this name, but no regulator has published anything about it. That is not a clean bill of health."
+    );
+  } else {
+    lines.push(STATE_HEADER[r.state] || STATE_HEADER.no_record);
+    lines.push(STATE_MEANING[r.state] || STATE_MEANING.no_record);
   }
 
-  lines.push("");
-  lines.push(`${STATUS_ICON[r.status] || "⚠️"} *SEC Status:* ${r.statusLabel}`);
-  if (r.citation) lines.push(`⚖️ _${r.citation}_`);
-
-  const isLowRisk = r.riskVerdict === "LOW";
-
-  if (isLowRisk && r.greenFlags?.length) {
+  // Evidence tier, said plainly rather than as a number on its own.
+  if (r.tier) {
     lines.push("");
-    lines.push("✅ *What checks out:*");
-    r.greenFlags.forEach((f, i) => lines.push(`${i + 1}. ${f}`));
+    lines.push(`📊 *Evidence:* Tier ${r.tier} — ${TIER_MEANING[r.tier]}`);
   }
 
-  const flags = r.redFlagsDetailed?.length
-    ? r.redFlagsDetailed
-    : (r.redFlags || []).map((f) => ({ flag: f, severity: "medium" }));
-
-  if (flags.length) {
+  if (r.sources?.length) {
     lines.push("");
-    lines.push(isLowRisk ? "🟡 *Worth noting:*" : "🚩 *Red Flags Found:*");
-    flags.forEach((f, i) => {
-      const icon = isLowRisk ? "" : `${SEVERITY_ICON[f.severity] || "🟡"} `;
-      lines.push(`${i + 1}. ${icon}${f.flag}`);
-    });
+    lines.push("📰 *Published by:*");
+    r.sources.forEach((s) => lines.push(`• ${s.publisher}${s.date ? ` — ${s.date}` : ""}`));
   }
 
-  if (r.contract) {
-    const c = r.contract;
+  if (r.warning_signs?.length) {
     lines.push("");
-    lines.push(`🔗 *Contract check* (${c.chainName}${c.tokenSymbol ? ` · ${c.tokenSymbol}` : ""})`);
-    lines.push(`${c.isHoneypot ? "❌" : "✅"} Honeypot: ${c.isHoneypot ? "YES — you cannot sell" : "not detected"}`);
-    lines.push(`${c.isOpenSource ? "✅" : "❌"} Source code: ${c.isOpenSource ? "published" : "not published"}`);
-    if (c.hiddenOwner) lines.push("❌ Hidden owner detected");
-    if (c.ownerChangeBalance) lines.push("❌ Owner can change your balance");
-    if (c.canTakeBackOwnership) lines.push("❌ Ownership can be reclaimed");
-    if (c.selfdestruct) lines.push("❌ Contract can self-destruct");
-    if (c.holderCount != null) lines.push(`👤 Holders: ${formatNumber(c.holderCount)}`);
+    lines.push("🔎 *What we found:*");
+    r.warning_signs.slice(0, 6).forEach((w, i) => lines.push(`${i + 1}. ${w}`));
   }
 
-  if (r.coingecko) {
-    const t = r.coingecko;
+  // The return claim is already listed above when it came through as a warning
+  // sign; only surface it separately when it is not already there.
+  if (r.return_check?.warning && !(r.warning_signs || []).includes(r.return_check.warning)) {
     lines.push("");
-    lines.push(`🪙 *${t.symbol} market data* (CoinGecko)`);
-    lines.push(`💵 Price: $${formatNumber(t.priceUsd)}${t.marketCapRank ? ` · rank #${t.marketCapRank}` : " · unranked"}`);
-    lines.push(`📊 Market cap: $${formatNumber(t.marketCapUsd)} · 24h volume: $${formatNumber(t.volume24hUsd)}`);
-    if (t.ageDays != null) lines.push(`📅 Age: ${formatNumber(t.ageDays)} days`);
-    if (t.exchangeCount) lines.push(`🏦 Listed on ${t.exchangeCount} exchange${t.exchangeCount === 1 ? "" : "s"}`);
-  }
-
-  if (r.reportCount > 0) {
-    lines.push("");
-    lines.push(`👥 *Community:* ${r.reportCount} Qwench user${r.reportCount === 1 ? "" : "s"} reported this scheme`);
+    lines.push(`💸 ${r.return_check.warning}`);
   }
 
   if (evidenceSummary) {
@@ -156,23 +176,29 @@ export function formatRiskReport(r, { evidenceSummary = "", legitMatch = null } 
     lines.push(evidenceSummary);
   }
 
-  lines.push("");
-  lines.push(`💡 *Recommendation:* ${r.recommendation}`);
+  const action = ACTION_LINE[r.suggested_action];
+  if (action) {
+    lines.push("");
+    lines.push(action);
+  }
+
+  if (r.questions_to_ask?.length) {
+    lines.push("");
+    lines.push("❓ *Ask them:*");
+    r.questions_to_ask.forEach((q) => lines.push(`• ${q}`));
+  }
+
   // If a registered company sits near this name, the user must leave knowing
   // where the real one is -- that is the whole point of checking.
   if (legitMatch) lines.push(formatRegisteredAlternative(legitMatch));
 
   lines.push("");
-  lines.push(`🔗 Full report: ${WEB_APP_URL}/report/${urlSlug(r.slug)}`);
+  if (r.entity_slug) lines.push(`🔗 Full report: ${WEB_APP_URL}/report/${urlSlug(r.entity_slug)}`);
   lines.push(`📢 Report this: Type "report"`);
   lines.push(`☎️ SEC Ghana: 0800100065`);
 
-  // Shows whether the verdict came from the AI analyzer or the rule fallback.
-  if (r.analyzedBy) {
-    const by = r.analyzedBy === "ai" ? `AI analysis${r.aiFromCache ? " (cached)" : ""}` : "rule-based scoring";
-    lines.push("");
-    lines.push(`_Assessed by ${by}. Not financial advice._`);
-  }
+  lines.push("");
+  lines.push("_Based on published regulatory records. Not financial advice._");
 
   return lines.join("\n");
 }
@@ -362,18 +388,19 @@ export function formatEvidenceSummary(counts) {
  * verdict" would undercut the advice Qwench gives in every other message.
  */
 export function formatAuthorityCard(r) {
-  const info = r.authorityInfo || {};
+  const name = r.entity || r.name || "This body";
   const lines = [];
 
   lines.push("🏛️ *Official Body — Not an Investment*");
-  lines.push(`📌 *${r.name}*`);
+  lines.push(`📌 *${name}*`);
   lines.push("");
-  if (info.role) lines.push(`📋 *Role:* ${info.role}`);
-  if (info.website) lines.push(`🌐 *Official site:* ${info.website}`);
-  if (info.contact) lines.push(`☎️ *Contact:* ${info.contact}`);
 
-  lines.push("");
-  lines.push(`${r.summary || `${r.name} is a Ghanaian authority, not a scheme that takes your money.`}`);
+  if (r.sources?.length) {
+    lines.push(`📰 *On record via:* ${r.sources.map((s) => s.publisher).join(", ")}`);
+    lines.push("");
+  }
+
+  lines.push(`${name} is a Ghanaian regulator or government body, not a scheme that takes your money.`);
 
   lines.push("");
   lines.push("⚠️ *Watch out:* if anyone asks you to pay this body through mobile money, or claims to invest on its behalf, that is a scam. These bodies do not collect investments from the public.");

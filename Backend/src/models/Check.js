@@ -67,7 +67,13 @@ checkSchema.index({ matchedEntityIds: 1 });
 checkSchema.index({ createdAt: -1 });
 // Drives the 24h senderHash prune
 checkSchema.index({ senderHashExpiresAt: 1 }, { sparse: true });
-checkSchema.index({ legacyId: 1 }, { unique: true, sparse: true });
+// Partial, not sparse: the field defaults to null, and a sparse index still
+// indexes an explicit null — so a second row with no legacy id collided and
+// the write was lost. Only real ObjectIds are indexed here.
+checkSchema.index(
+  { legacyId: 1 },
+  { unique: true, partialFilterExpression: { legacyId: { $type: "objectId" } } }
+);
 
 /**
  * Deliberately NOT a TTL index on this collection.

@@ -1,3 +1,13 @@
+// PARTIALLY DEPRECATED — the risk-scoring brain in this file is RETIRED.
+//
+// analyzeWithAI(), SYSTEM_PROMPT and validateAssessment() asked a model to
+// score and judge. Nothing calls them now: decisions come from
+// src/services/evidenceEngine.js, and the model is only used to EXTRACT text
+// from images and pages via src/services/aiExtractor.js.
+//
+// Still live and still used: runJsonPrompt(), visionConfig(), aiStatus() and
+// checkLlmStatus(), which are the provider plumbing the extractors run on.
+
 import AiAnalysis from "../models/AiAnalysis.js";
 
 /* ------------------------------------------------------------------ *

@@ -1,3 +1,12 @@
+// DEPRECATED — the scoring system this file implements has been REMOVED from
+// the product. Nothing routes through it any more: /v1 and /api/check are both
+// served by src/services/evidenceEngine.js, which decides from records and
+// rules instead of a 0-10 score.
+//
+// Gone with it: riskScore, riskVerdict (LOW/MEDIUM/HIGH/CRITICAL), riskColor,
+// recommendation text, communityBoost and scoreBreakdown. Kept only so the
+// migration and any archived data remain readable. Do not call it.
+
 import Investment from "../models/Investment.js";
 import Report from "../models/Report.js";
 import { analyzeWithAI, verdictForScore } from "./aiAnalyzer.js";

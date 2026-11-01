@@ -2,6 +2,10 @@ import Link from "next/link";
 import { articles, featuredArticle } from "@/lib/mock-data";
 import { ArrowLeft } from "lucide-react";
 
+export function generateStaticParams() {
+  return [featuredArticle, ...articles].map((a) => ({ slug: a.slug }));
+}
+
 export default async function ArticlePage({
   params,
 }: {

@@ -32,21 +32,21 @@ export async function runCheck(ctx, query, opts = {}) {
     return send(API_ERROR);
   }
 
-  const engineTag = result.analyzedBy === "ai" ? "🤖 AI (LLM)" : "📋 Rule-based";
-  console.log(`[check] ${query} -> ${result.riskScore}/10 ${result.riskLevel} (${engineTag})`);
+  console.log(`[check] ${query} -> ${result.state} tier=${result.tier ?? "none"} (${(result.reason_codes || []).join(",") || "no codes"})`);
 
   // Regulators and government bodies are not investments, so they get an
   // information card instead of a risk verdict.
-  if (result.isAuthority) {
+  if (result.state === "registered") {
     console.log(`[check] ${query} is an official body -- sending the authority card`);
     return send(formatAuthorityCard(result));
   }
 
-  // Nothing known about this entity and the score is a shrug -- ask the user
-  // for proof instead of handing them a vague MEDIUM.
-  if (result.needsMoreInfo && !suppressEvidencePrompt) {
+  // No record at all. Rather than leave it at "I don't know", ask for
+  // screenshots or a link so there is something to go on.
+  const nothingKnown = !result.match && !result.tier;
+  if (nothingKnown && !suppressEvidencePrompt) {
     const { startEvidenceCollection } = await import("./evidenceFlow.js");
-    return startEvidenceCollection(ctx, result.name || query);
+    return startEvidenceCollection(ctx, result.entity || query);
   }
 
   const header = evidence?.evidenceCount
@@ -58,11 +58,4 @@ export async function runCheck(ctx, query, opts = {}) {
     : "";
 
   await send(formatRiskReport(result, { evidenceSummary: header, legitMatch }));
-
-  // Nothing corroborated this verdict, so give the user the report and then
-  // offer to improve it rather than leaving a name-only judgement to stand.
-  if (result.canRefineWithEvidence && !suppressEvidencePrompt) {
-    const { offerEvidenceRefinement } = await import("./evidenceFlow.js");
-    await offerEvidenceRefinement(ctx, result.name || query, result.noDataNotice);
-  }
 }

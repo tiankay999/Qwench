@@ -2,6 +2,10 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Share2 } from "lucide-react";
 import { riskReports } from "@/lib/mock-data";
+
+export function generateStaticParams() {
+  return Object.keys(riskReports).map((slug) => ({ slug }));
+}
 import { RiskGauge } from "@/components/report/RiskGauge";
 import { VerdictBanner } from "@/components/report/VerdictBanner";
 import { BreakdownGrid } from "@/components/report/BreakdownGrid";

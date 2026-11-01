@@ -1,3 +1,7 @@
+// DEPRECATED — replaced by the new data model (Entity + Identifier + Record).
+// See src/models/index.js. Still backing the live risk engine until the
+// cutover; migrate with src/scripts/migrateOldData.js, then retire this file.
+
 import mongoose from "mongoose";
 
 export const STATUSES = ["authority", "licensed", "sandbox", "blacklisted", "revoked", "unknown"];

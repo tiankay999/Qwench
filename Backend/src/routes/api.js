@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { Router } from "express";
 
 import AiAnalysis from "../models/AiAnalysis.js";
-import Check from "../models/Check.js";
+import LegacyCheck from "../models/LegacyCheck.js";
 import Investment from "../models/Investment.js";
 import Report from "../models/Report.js";
 import { aiStatus } from "../services/aiAnalyzer.js";
@@ -18,7 +18,7 @@ const router = Router();
 /** We never store raw phone numbers -- only a salted hash. */
 function hashPhone(phone) {
   if (!phone) return "";
-  const salt = process.env.PHONE_HASH_SALT || "qwench-dev-salt";
+  const salt = process.env.PHONE_HASH_SALT;
   return crypto.createHash("sha256").update(`${salt}:${String(phone).replace(/\D/g, "")}`).digest("hex");
 }
 
@@ -46,7 +46,7 @@ router.post("/check", async (req, res) => {
     });
 
     // Log the check for analytics / trending -- never blocks the response.
-    Check.create({
+    LegacyCheck.create({
       query: String(query).trim(),
       querySlug: result.slug,
       channel,
@@ -238,7 +238,7 @@ router.get("/crypto/trending", async (_req, res) => {
 router.get("/stats", async (_req, res) => {
   try {
     const [checks, reports, licensed, sandbox, blacklisted, aiCalls, aiFailures] = await Promise.all([
-      Check.countDocuments(),
+      LegacyCheck.countDocuments(),
       Report.countDocuments(),
       Investment.countDocuments({ status: "licensed" }),
       Investment.countDocuments({ status: "sandbox" }),

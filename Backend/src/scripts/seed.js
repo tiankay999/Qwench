@@ -4,14 +4,14 @@ import crypto from "node:crypto";
 import mongoose from "mongoose";
 
 import { connectDB } from "../config/db.js";
-import Check from "../models/Check.js";
+import LegacyCheck from "../models/LegacyCheck.js";
 import Investment from "../models/Investment.js";
 import Report from "../models/Report.js";
 import { bootstrapSecData } from "../services/bootstrapData.js";
 import { slugify } from "../services/secData.js";
 
 function hashPhone(phone) {
-  const salt = process.env.PHONE_HASH_SALT || "qwench-dev-salt";
+  const salt = process.env.PHONE_HASH_SALT;
   return crypto.createHash("sha256").update(`${salt}:${phone}`).digest("hex");
 }
 
@@ -41,7 +41,7 @@ async function seed() {
 
   console.log("");
   console.log("[seed] clearing investments, reports and checks...");
-  await Promise.all([Investment.deleteMany({}), Report.deleteMany({}), Check.deleteMany({})]);
+  await Promise.all([Investment.deleteMany({}), Report.deleteMany({}), LegacyCheck.deleteMany({})]);
 
   // The SEC Ghana register itself is loaded by the same routine the server uses
   // on start, so there is only one definition of that data.

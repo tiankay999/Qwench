@@ -1,3 +1,7 @@
+// DEPRECATED — replaced by PublicReport in the new data model.
+// See src/models/PublicReport.js. Still backing the live report flow until
+// the cutover; migrate with src/scripts/migrateOldData.js.
+
 import mongoose from "mongoose";
 
 const reportSchema = new mongoose.Schema(

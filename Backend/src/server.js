@@ -4,9 +4,13 @@ import cors from "cors";
 import express from "express";
 
 import { connectDB } from "./config/db.js";
+import { requireSecrets } from "./config/env.js";
 import apiRoutes from "./routes/api.js";
 import { checkLlmStatus } from "./services/aiAnalyzer.js";
 import { bootstrapSecData } from "./services/bootstrapData.js";
+
+// Refuse to start without the secrets that key every identifier hash.
+requireSecrets();
 
 const app = express();
 const PORT = process.env.API_PORT || 4000;

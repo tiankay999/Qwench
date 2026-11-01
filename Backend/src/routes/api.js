@@ -32,7 +32,14 @@ function hashPhone(phone) {
  * a model's judgement, and judgement is not what this system is for.
  */
 router.post("/check", async (req, res) => {
-  const { query, channel = "whatsapp", amount_ghs: amountGhs, new_payee: newPayee = false } = req.body || {};
+  const {
+    query,
+    channel = "whatsapp",
+    amount_ghs: amountGhs,
+    new_payee: newPayee = false,
+    // The bot sets this once it has already asked which name was meant.
+    skipConfirmation = false,
+  } = req.body || {};
 
   if (!query || !String(query).trim()) {
     return res.status(400).json({ ok: false, error: "A 'query' is required" });
@@ -40,7 +47,14 @@ router.post("/check", async (req, res) => {
 
   try {
     const type = inferType(query);
-    const result = await evaluate({ recipient: query, type, channel, amount_ghs: amountGhs, new_payee: newPayee });
+    const result = await evaluate({
+      recipient: query,
+      type,
+      channel,
+      amount_ghs: amountGhs,
+      new_payee: newPayee,
+      skip_confirmation: skipConfirmation,
+    });
 
     await logCheck({
       channel: ["whatsapp", "telegram", "web", "api"].includes(channel) ? channel : "whatsapp",
@@ -64,7 +78,12 @@ router.post("/check", async (req, res) => {
 function inferType(query) {
   const q = String(query).trim();
   if (/^0x[a-fA-F0-9]{40}$/.test(q)) return "wallet";
-  if (/^https?:\/\//i.test(q) || /^[a-z0-9-]+\.[a-z]{2,}(\/|$)/i.test(q)) return "url";
+  if (/^https?:\/\//i.test(q)) return "url";
+
+  // Any number of labels before the TLD, so multi-label domains such as
+  // sec.gov.gh and gse.com.gh are recognised rather than read as a name.
+  if (/^[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}(\/\S*)?$/i.test(q) && !/\s/.test(q)) return "url";
+
   if (/^\+?[\d\s\-()]{9,15}$/.test(q)) return "momo_number";
   return "name";
 }

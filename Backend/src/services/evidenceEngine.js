@@ -223,7 +223,9 @@ export function buildQuestionsToAsk(state, warningSignCount = 0) {
  * ------------------------------------------------------------------ */
 
 export async function evaluate(input) {
-  const { recipient, type, amount_ghs: amountGhs, new_payee: newPayee = false } = input;
+  // `skip_confirmation` is set once the caller has already asked the user which
+  // name they meant. Asking again would loop them through the same question.
+  const { recipient, type, amount_ghs: amountGhs, new_payee: newPayee = false, skip_confirmation: skipConfirmation = false } = input;
 
   const result = {
     match: false,
@@ -296,6 +298,11 @@ export async function evaluate(input) {
 
       if (fuzzy?.decision === "exact") {
         matchedEntity = await entityFromVerifierMatch(fuzzy.match);
+      } else if (fuzzy?.isSameEntity && fuzzy.match) {
+        // Only ordinary corporate furniture was added ("Databank Ghana Ltd"),
+        // so this is that company. Treating it as unknown would send someone
+        // asking about a licensed firm down the unknown-entity path.
+        matchedEntity = await entityFromVerifierMatch(fuzzy.match);
       } else if (fuzzy?.autoFlagged) {
         // A dressed-up version of a name already in a notice. No question is
         // asked: adding a word does not make it a different scheme.
@@ -305,7 +312,7 @@ export async function evaluate(input) {
             `Name variant of "${fuzzy.match.name}" — ${(fuzzy.spoofIndicators || []).join(", ")}`
           );
         }
-      } else if (fuzzy?.needsConfirmation) {
+      } else if (fuzzy?.needsConfirmation && !skipConfirmation) {
         // Close to something registered, but not it. Ask before judging.
         return {
           ...result,
@@ -349,6 +356,15 @@ export async function evaluate(input) {
   result.entity_slug = matchedEntity.slug;
 
   const records = await Record.find({ entityId: matchedEntity._id, status: "active" }).populate("sourceId").lean();
+
+  // Records waiting on four-eyes review are deliberately not used for a
+  // verdict, but their existence has to be reported. Otherwise an entity we
+  // demonstrably hold a notice for reads as "nothing known", and Qwench ends
+  // up asking for SEC Ghana's own licence number.
+  result.pending_records = await Record.countDocuments({
+    entityId: matchedEntity._id,
+    status: "under_review",
+  });
 
   result.state = determineState(records);
   result.sources = records
@@ -457,7 +473,12 @@ export async function evaluate(input) {
   /* --- 8. Build the reply (templates only) ------------------------- */
   result.suggested_action = determineSuggestedAction(result.tier, newPayee, amountGhs);
   result.allowed_use = determineAllowedUse(result.state, result.tier);
-  result.questions_to_ask = buildQuestionsToAsk(result.state, result.warning_signs.length);
+  // Questions that assume we know nothing are wrong when a record is simply
+  // awaiting sign-off, so they are withheld in that case.
+  result.questions_to_ask =
+    result.state === "no_record" && result.pending_records > 0
+      ? []
+      : buildQuestionsToAsk(result.state, result.warning_signs.length);
 
   /* --- 9. Logging is the route's job (logCheck) -------------------- */
   return result;

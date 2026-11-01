@@ -58,7 +58,7 @@ export async function verifyName(query) {
 }
 
 /** POST /api/check with spoofing context and/or user-supplied evidence */
-export async function checkInvestmentWithContext(query, { spoofingDetection, injectedFlags, evidence } = {}) {
+export async function checkInvestmentWithContext(query, { spoofingDetection, injectedFlags, evidence, skipConfirmation } = {}) {
   console.log(
     `[api] POST /api/check  query="${query}"` +
       `${spoofingDetection ? " +spoof" : ""}${evidence?.evidenceCount ? ` +${evidence.evidenceCount} evidence` : ""}`
@@ -69,6 +69,7 @@ export async function checkInvestmentWithContext(query, { spoofingDetection, inj
     spoofingDetection,
     injectedFlags,
     evidence,
+    skipConfirmation,
   });
   return data.data;
 }

@@ -19,14 +19,14 @@ export function extractUrls(text) {
  */
 export async function runCheck(ctx, query, opts = {}) {
   const { send, session } = ctx;
-  const { spoofingDetection, injectedFlags, evidence, suppressEvidencePrompt, legitMatch } = opts;
+  const { spoofingDetection, injectedFlags, evidence, suppressEvidencePrompt, legitMatch, skipConfirmation } = opts;
 
   resetSession(session);
   await send(CHECKING(query));
 
   let result;
   try {
-    result = await checkInvestmentWithContext(query, { spoofingDetection, injectedFlags, evidence });
+    result = await checkInvestmentWithContext(query, { spoofingDetection, injectedFlags, evidence, skipConfirmation });
   } catch (err) {
     console.error(`[check] failed for "${query}":`, err.response?.data?.error || err.message);
     return send(API_ERROR);

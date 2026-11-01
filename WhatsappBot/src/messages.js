@@ -72,18 +72,6 @@ export const API_ERROR = `⚠️ I couldn't reach the Qwench servers just now. P
  * Risk report formatting
  * ------------------------------------------------------------------ */
 
-const STATUS_ICON = {
-  authority: "🏛️",
-  licensed: "✅",
-  sandbox: "🧪",
-  blacklisted: "❌",
-  revoked: "❌",
-  unregistered: "⚠️",
-  unknown: "⚠️",
-};
-
-const SEVERITY_ICON = { critical: "🔴", high: "🟠", medium: "🟡", low: "⚪" };
-
 /**
  * Build the WhatsApp report from an /api/check evidence result.
  *
@@ -134,7 +122,16 @@ export function formatRiskReport(r, { evidenceSummary = "", legitMatch = null } 
   // "No record" must not be said when we actually hold evidence. An entity we
   // recognise, or any evidence tier, means the plain no-record wording would
   // contradict the rest of the message.
-  if (r.state === "no_record" && (r.match || r.tier)) {
+  if (r.state === "no_record" && r.pending_records > 0) {
+    // We hold something on this entity, but it has not cleared review, so it
+    // cannot be used as a finding yet. Saying "nothing known" would be false.
+    lines.push("📋 *On file — awaiting review*");
+    lines.push(
+      `Qwench holds ${r.pending_records} record${r.pending_records === 1 ? "" : "s"} on this name that a reviewer has not signed off yet, so I can't report what they say.`
+    );
+    lines.push("");
+    lines.push("Verify directly with SEC Ghana on 0800100065 before you act.");
+  } else if (r.state === "no_record" && (r.match || r.tier)) {
     lines.push("⚠️ *No current regulatory record*");
     lines.push(
       r.tier
@@ -223,15 +220,6 @@ function urlSlug(slug) {
   return encodeURIComponent(String(slug || "").trim().replace(/\s+/g, "-"));
 }
 
-function formatNumber(n) {
-  const num = Number(n);
-  if (!num) return "0";
-  if (num < 1) return num.toPrecision(2);
-  if (num >= 1e12) return `${(num / 1e12).toFixed(2)}T`;
-  if (num >= 1e9) return `${(num / 1e9).toFixed(2)}B`;
-  if (num >= 1e6) return `${(num / 1e6).toFixed(2)}M`;
-  return num.toLocaleString("en-US", { maximumFractionDigits: 2 });
-}
 
 /* ------------------------------------------------------------------ *
  * Name verification / anti-spoofing

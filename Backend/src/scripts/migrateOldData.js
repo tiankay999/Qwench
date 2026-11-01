@@ -15,6 +15,7 @@ import {
   Source,
   Investment,
   Report,
+  UNCONFIRMED_REPORT_DAYS,
 } from "../models/index.js";
 
 /**
@@ -115,38 +116,36 @@ async function migrateInvestments() {
     // The name itself, plus every alias, becomes a matchable identifier.
     for (const label of [old.name, ...(old.aliases || [])]) {
       if (!label) continue;
-      const built = buildIdentifier("name", label, { origin: "legacy register import" });
+      const built = buildIdentifier("name", label, { origin: "legacy" });
       if (!built.valueHash) continue;
 
-      await Identifier.findOneAndUpdate(
-        { entityId: entity._id, type: "name", valueHash: built.valueHash },
-        { $set: { ...built, entityId: entity._id, status: "active" } },
-        { upsert: true, setDefaultsOnInsert: true }
-      );
+      const existing = await Identifier.findOne({ entityId: entity._id, type: "name", valueHash: built.valueHash });
+      if (existing) {
+        existing.set({ ...built, status: "active" });
+        await existing.save();
+      } else {
+        await Identifier.create({ ...built, entityId: entity._id, status: "active" });
+      }
       stats.identifiers += 1;
     }
 
     const source = await sourceFor(old.source || "SEC Ghana");
 
-    // Imported records land as under_review, never active: four-eyes means a
-    // human still has to sign each one off before it can drive a verdict.
-    await Record.findOneAndUpdate(
-      { entityId: entity._id, sourceId: source._id, type: mapping.recordType },
-      {
-        $set: {
-          entityId: entity._id,
-          sourceId: source._id,
-          type: mapping.recordType,
-          jurisdiction: "GH",
-          licenseType: old.licenseType || undefined,
-          quote: old.redFlags?.[0] || undefined,
-          effectiveOn: old.dateAdded || old.createdAt || undefined,
-          status: "under_review",
-          capturedBy: CAPTURED_BY,
-        },
-      },
-      { upsert: true, setDefaultsOnInsert: true }
-    );
+    // Imported records land as pending, never active: four-eyes means a human
+    // still has to sign each one off. No quote is carried over, because the old
+    // data has no regulator wording. A re-run leaves an existing record untouched,
+    // so it cannot undo a review.
+    const recordKey = { entityId: entity._id, sourceId: source._id, type: mapping.recordType };
+    if (!(await Record.exists(recordKey))) {
+      await Record.create({
+        ...recordKey,
+        jurisdiction: "GH",
+        licenseType: old.licenseType || undefined,
+        effectiveOn: old.dateAdded || old.createdAt || undefined,
+        status: "pending",
+        capturedBy: CAPTURED_BY,
+      });
+    }
     stats.records += 1;
   }
 }
@@ -166,6 +165,9 @@ async function migrateReports() {
     if (built.valueHash) identifiers.push({ type: "name", valueHash: built.valueHash });
 
     const source = ["whatsapp", "telegram", "web"].includes(old.source) ? old.source : "whatsapp";
+    const reviewStatus = mapReviewStatus(old.status);
+    // The 90 days run from the original report, not from this migration.
+    const reportedAt = new Date(old.createdAt || old.timestamp || Date.now());
 
     await PublicReport.findOneAndUpdate(
       { legacyId: old._id },
@@ -178,7 +180,8 @@ async function migrateReports() {
           // The old description is the reporter's own words; it is evidence,
           // not an identifier, so it carries over as an evidence reference.
           evidenceRefs: old.description ? [old.description.slice(0, 500)] : [],
-          reviewStatus: mapReviewStatus(old.status),
+          reviewStatus,
+          expiresAt: reviewStatus === "confirmed" ? null : new Date(reportedAt.getTime() + UNCONFIRMED_REPORT_DAYS * 86_400_000),
         },
       },
       { upsert: true, setDefaultsOnInsert: true }
@@ -232,8 +235,6 @@ async function migrateChecks() {
           state: mapState(old.result?.status),
           flags: old.result?.redFlags?.slice(0, 6) || [],
           outcome: mapOutcome(old.result?.riskVerdict),
-          // No sender hash exists in the old data, and none is invented.
-          senderHash: null,
         },
       },
       { upsert: true, setDefaultsOnInsert: true }
@@ -288,7 +289,7 @@ async function main() {
   console.log(`    sources        ${stats.sources}`);
   console.log(`    entities       ${stats.entities}`);
   console.log(`    identifiers    ${stats.identifiers}`);
-  console.log(`    records        ${stats.records}  (all under_review — four-eyes sign-off required)`);
+  console.log(`    records        ${stats.records}  (all pending — four-eyes sign-off required)`);
   console.log(`    publicReports  ${stats.publicReports}`);
   console.log(`    checks         ${stats.checks}  (raw query text dropped)`);
 

@@ -4,6 +4,7 @@ import { IDENTIFIER_TYPES } from "../lib/identifiers.js";
 
 export const PUBLIC_REPORT_SOURCES = ["whatsapp", "telegram", "web"];
 export const PUBLIC_REPORT_STATUSES = ["pending", "under_review", "confirmed", "dismissed"];
+export const UNCONFIRMED_REPORT_DAYS = 90;
 
 const hashedIdentifierSchema = new mongoose.Schema(
   {
@@ -28,11 +29,18 @@ const publicReportSchema = new mongoose.Schema(
     evidenceRefs: [{ type: String }],
     reviewStatus: { type: String, enum: PUBLIC_REPORT_STATUSES, default: "pending" },
     // _id of the row this came from in the old `reports` collection. Gives the
-    // migration a stable key so re-running updates instead of duplicating.
-    legacyId: { type: mongoose.Schema.Types.ObjectId, default: null },
+    // migration a stable key so re-running updates instead of duplicating. Absent
+    // on new reports: a stored null would collide in the unique sparse index below.
+    legacyId: { type: mongoose.Schema.Types.ObjectId },
+    // Deleted by the TTL index below. Null once confirmed, which keeps the report.
+    expiresAt: { type: Date, default: () => new Date(Date.now() + UNCONFIRMED_REPORT_DAYS * 86_400_000) },
   },
   { timestamps: true }
 );
+
+publicReportSchema.pre("validate", function keepConfirmedReports() {
+  if (this.reviewStatus === "confirmed") this.expiresAt = null;
+});
 
 /**
  * A single public report is tier "None". It is evidence that something is
@@ -42,6 +50,7 @@ publicReportSchema.methods.evidenceTier = function evidenceTier() {
   return null;
 };
 
+publicReportSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 publicReportSchema.index({ reviewStatus: 1 });
 publicReportSchema.index({ schemeName: "text" });
 publicReportSchema.index({ "identifiers.valueHash": 1 });

@@ -53,6 +53,7 @@ contributionSchema.pre("validate", function requireHashedIdentifiers() {
 });
 
 contributionSchema.index({ orgId: 1, reviewStatus: 1 });
+contributionSchema.index({ schemeName: 1, reviewStatus: 1 });
 contributionSchema.index({ "identifiers.valueHash": 1 });
 contributionSchema.index({ schemeName: "text" });
 

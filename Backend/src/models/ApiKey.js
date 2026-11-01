@@ -16,6 +16,7 @@ const apiKeySchema = new mongoose.Schema(
     scopes: [{ type: String, enum: API_SCOPES }],
     rateLimit: { type: Number, default: 100 },
     revokedAt: { type: Date, default: null },
+    lastUsedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

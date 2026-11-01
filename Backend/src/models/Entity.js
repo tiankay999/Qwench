@@ -18,6 +18,9 @@ const entitySchema = new mongoose.Schema(
     aliases: [{ type: String, trim: true }],
     description: { type: String, trim: true },
     isActive: { type: Boolean, default: true },
+    // Names match exactly unless this is switched on for the entity
+    allowFuzzy: { type: Boolean, default: false },
+    isDemo: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

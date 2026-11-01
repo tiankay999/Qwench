@@ -55,6 +55,7 @@ const caseSchema = new mongoose.Schema(
     referrals: { type: [referralSchema], default: [] },
     outcome: { type: String, trim: true },
     ownerId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    isDemo: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

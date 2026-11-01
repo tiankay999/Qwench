@@ -1,5 +1,5 @@
 import { Check } from "../models/index.js";
-import { hashSender, hourBucket } from "../lib/identifiers.js";
+import { hourBucket } from "../lib/identifiers.js";
 
 /**
  * Record one lookup for the Signal and Case pipelines.
@@ -16,7 +16,6 @@ export async function logCheck({
   state = "no_record",
   tier = null,
   flags = [],
-  sender,
   outcome = "none",
 }) {
   try {
@@ -29,12 +28,10 @@ export async function logCheck({
       state,
       tier,
       flags,
-      // Hashed here, never passed in raw. Rotates daily and is cleared after
-      // 24h by src/scripts/pruneSenderHashes.js.
-      senderHash: sender ? hashSender(sender) : null,
       outcome,
     });
   } catch (err) {
-    console.error(`[check-log] could not record check: ${err.message}`);
+    // The name only: a database error message can quote the values it rejected.
+    console.error(`[check-log] could not record check: ${err.name}`);
   }
 }

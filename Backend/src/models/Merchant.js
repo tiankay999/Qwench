@@ -27,6 +27,7 @@ const merchantSchema = new mongoose.Schema(
     verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     verifiedAt: { type: Date },
     renewalDue: { type: Date },
+    isDemo: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
@@ -47,6 +48,7 @@ merchantSchema.methods.claimLine = function claimLine() {
 };
 
 merchantSchema.index({ entityId: 1 });
+merchantSchema.index({ officialIdentifiers: 1, status: 1 });
 merchantSchema.index({ status: 1 });
 merchantSchema.index({ renewalDue: 1 }, { sparse: true });
 

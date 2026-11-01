@@ -31,8 +31,6 @@ router.post("/check", checkRules, async (req, res, next) => {
   try {
     const result = await performCheck({ recipient, type, newPayee });
 
-    // The sender is hashed inside logCheck with a daily-rotating salt and
-    // cleared after 24h; the raw value never reaches the database.
     await logCheck({
       channel,
       inputType: inputTypeFor(type),
@@ -41,7 +39,6 @@ router.post("/check", checkRules, async (req, res, next) => {
       state: result.state,
       tier: result.tier,
       flags: result.reasonCodes || [],
-      sender: req.headers["x-sender"],
       outcome: result.suggestedAction,
     });
 

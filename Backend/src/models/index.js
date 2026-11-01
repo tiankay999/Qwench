@@ -8,7 +8,7 @@
 /* --- Provenance and entity graph --------------------------------- */
 export { default as Source, SOURCE_TYPES } from "./Source.js";
 export { default as Entity, ENTITY_KINDS } from "./Entity.js";
-export { default as Identifier, IDENTIFIER_STATUSES } from "./Identifier.js";
+export { default as Identifier, IDENTIFIER_ORIGINS, IDENTIFIER_STATUSES } from "./Identifier.js";
 export { default as Record, RECORD_TYPES, RECORD_STATUSES } from "./Record.js";
 export { default as Relation, RELATION_TYPES, RELATION_STATUSES } from "./Relation.js";
 
@@ -25,8 +25,9 @@ export {
   CHECK_STATES,
   CHECK_OUTCOMES,
 } from "./Check.js";
+export { default as SenderDay } from "./SenderDay.js";
 export { default as Contribution, CONTRIBUTION_REVIEW_STATUSES } from "./Contribution.js";
-export { default as PublicReport, PUBLIC_REPORT_SOURCES, PUBLIC_REPORT_STATUSES } from "./PublicReport.js";
+export { default as PublicReport, PUBLIC_REPORT_SOURCES, PUBLIC_REPORT_STATUSES, UNCONFIRMED_REPORT_DAYS } from "./PublicReport.js";
 export { default as Signal, SIGNAL_REVIEW_STATUSES } from "./Signal.js";
 export { default as Case, CASE_TYPES, CASE_STATUSES, CASE_TRIGGERS } from "./Case.js";
 

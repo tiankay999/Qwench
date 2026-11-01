@@ -10,11 +10,11 @@
 const REQUIRED = [
   {
     name: "PHONE_HASH_SALT",
-    purpose: "hashing phone, MoMo and bank numbers so raw values are never stored",
+    purpose: "hashing senders for the daily fair-use limit, and reporter numbers on /api",
   },
   {
     name: "HMAC_SECRET_KEY",
-    purpose: "keyed hashing of identifiers shared between member organisations",
+    purpose: "keyed hashing of every identifier, including MoMo and bank numbers",
   },
   {
     name: "JWT_SECRET",

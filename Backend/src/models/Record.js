@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 
 export const RECORD_TYPES = ["warning", "licence", "sandbox", "registration", "foreign_alert", "sanction"];
-export const RECORD_STATUSES = ["active", "expired", "superseded", "under_review"];
+export const RECORD_STATUSES = ["pending", "active", "expired", "withdrawn"];
 
 /**
  * An entity's standing under one source. An entity can hold several at once --
@@ -23,11 +23,12 @@ const recordSchema = new mongoose.Schema(
     effectiveOn: { type: Date },
     // e.g. the end of a 12-month sandbox window
     endsOn: { type: Date },
-    status: { type: String, enum: RECORD_STATUSES, default: "active" },
+    status: { type: String, enum: RECORD_STATUSES, default: "pending" },
 
     capturedBy: { type: String, required: true, trim: true },
     reviewedBy: { type: String, trim: true },
     reviewedAt: { type: Date },
+    isDemo: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
@@ -55,9 +56,13 @@ recordSchema.pre("validate", function enforceFourEyes() {
   if (this.status === "active" && !reviewed) {
     throw (
       new Error(
-        "A record cannot be set active before review. Set status to 'under_review' until a second person signs it off."
+        "A record cannot be set active before review. Leave it pending until a second person signs it off."
       )
     );
+  }
+
+  if (this.status === "active" && !(this.quote || "").trim()) {
+    throw new Error("A record cannot be set active without a quote from its source.");
   }
 
   if (reviewed && !this.reviewedAt) this.reviewedAt = new Date();
@@ -69,6 +74,26 @@ recordSchema.methods.isFourEyesClean = function isFourEyesClean() {
   const reviewed = (this.reviewedBy || "").trim().toLowerCase();
   return Boolean(reviewed) && reviewed !== captured;
 };
+
+/**
+ * Query updates skip the rules above, so the fields those rules depend on can
+ * only change through document.save(). bulkWrite is not covered: don't use it on
+ * this collection.
+ */
+const REVIEW_FIELDS = ["reviewedBy", "capturedBy", "sourceId", "quote"];
+
+function refuseUnreviewedUpdate() {
+  const update = this.getUpdate();
+  const fields = Array.isArray(update) ? null : { ...update, ...update?.$set, ...update?.$setOnInsert };
+
+  if (!fields || fields.status === "active" || REVIEW_FIELDS.some((f) => f in fields)) {
+    throw new Error("Change a record's status or review fields with document.save(), so the review rules run.");
+  }
+}
+
+for (const op of ["updateOne", "updateMany", "findOneAndUpdate", "replaceOne", "findOneAndReplace"]) {
+  recordSchema.pre(op, refuseUnreviewedUpdate);
+}
 
 recordSchema.index({ entityId: 1, status: 1 });
 recordSchema.index({ type: 1, status: 1 });

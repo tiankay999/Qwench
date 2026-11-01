@@ -9,6 +9,10 @@ const organizationSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true },
     type: { type: String, required: true, enum: ORG_TYPES },
     status: { type: String, enum: ORG_STATUSES, default: "active" },
+    // At or above this amount, a tier 1 new payee suggests a confirmation call
+    confirmationCallLimitGhs: { type: Number, min: 0, default: null },
+    // Whether this organisation warns customers on partner-confirmed data
+    warnsOnPartnerData: { type: Boolean, default: false },
     // Demo organisations are labelled so their data is never mistaken for real
     isDemo: { type: Boolean, default: false },
   },

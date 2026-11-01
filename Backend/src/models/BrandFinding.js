@@ -36,6 +36,7 @@ const brandFindingSchema = new mongoose.Schema(
     evidenceRefs: [{ type: String }],
     reviewStatus: { type: String, enum: FINDING_REVIEW_STATUSES, default: "pending" },
     takedownStatus: { type: String, enum: TAKEDOWN_STATUSES, default: "not_requested" },
+    isDemo: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

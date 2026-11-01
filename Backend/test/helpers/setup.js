@@ -18,7 +18,9 @@ const { default: mongoose } = await import("mongoose");
 let mongo;
 
 export async function startDb() {
-  mongo = await MongoMemoryServer.create();
+  // MongoDB gets 10 seconds to start by default, too short with one instance per
+  // test file on a busy machine.
+  mongo = await MongoMemoryServer.create({ instance: { launchTimeout: 60000 } });
   await mongoose.connect(mongo.getUri());
   // Build indexes now, so tests see the same constraints as a real database.
   await Promise.all(Object.values(mongoose.models).map((model) => model.init()));

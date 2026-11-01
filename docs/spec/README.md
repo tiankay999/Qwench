@@ -56,6 +56,11 @@ Stay in your own area. If you need something from another owner, list it for the
 - **Fair-use limit:** 20 checks per person per day on the bots, configurable.
 - **Console:** login session, so no API key sits in the browser.
 - **Unbuilt features:** say "Next" in the pitch, and label concepts "Concept".
+- **API keys:** stored as a keyed hash using `HMAC_SECRET_KEY`, because a plain SHA-256 of a stolen key list is easier to attack.
+- **Identifier hashes:** every identifier, including numbers, uses `HMAC_SECRET_KEY`. `PHONE_HASH_SALT` is for sender hashes.
+- **Readable numbers:** only a number published in a notice stays readable. Every other MoMo or bank number, and all partner data, is a hash only.
+- **Record statuses:** `pending`, `active`, `expired`, `withdrawn`.
+- **Code layout:** existing files in `src/routes/` and `src/services/` stay where they are. New engine code goes in `src/engine/`.
 
 ## Code already on `main`
 
@@ -76,6 +81,8 @@ four-eyes check on records, required secrets at start-up, CORS limits, rate limi
 | Identifier hash key | `HMAC_SECRET_KEY` |
 | Allowed origins | `ALLOWED_ORIGINS` |
 
+Backend progress and open bugs are in [03-backend-workplan.md](03-backend-workplan.md).
+
 **Gaps between the code and this spec:**
 
 | Gap | What the spec needs |
@@ -86,7 +93,7 @@ four-eyes check on records, required secrets at start-up, CORS limits, rate limi
 | No `/v1/console` routes | Login, lookup, payment check, feed, keys, review queue |
 | README uses `internal_only` | Confirm against the `internal_review` and `allowed_use` table in the spec, then use one name |
 | No `is_demo` in responses | Add it wherever demo data can be returned |
-| `reviewRecords.js` approves records in bulk | Don't use it for real data. Every record needs a real second review |
+| `reviewRecords.js` approves records in bulk | Don't use it for real data. Every record needs a real second review. Migrated records have no quote, so it can't activate them |
 | Feed may include partner data | Confirm that partner numbers never appear in it |
 | `isPublicHttpUrl` follows redirects unchecked | Fix as described in the backend workplan |
 | The bot still depends on `/api` | Move it, then retire `/api` with Dre's approval |

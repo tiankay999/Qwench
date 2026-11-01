@@ -59,17 +59,18 @@ This is roughly **50–70 engineering hours**, so it probably won't all fit befo
 | Collection | Key fields | Rules |
 |---|---|---|
 | **sources** | publisher, type, title, url, publishedOn, retrievedAt, archiveUrl, isOfficial | Required by every record |
-| **entities** | name, slug, kind (platform, company, token, app, merchant, authority), country | Replaces `Investment` |
-| **identifiers** | entityId, type (name, domain, momo_number, bank_account, wallet, social_handle, telegram_link, tiktok_handle, merchant_id), raw, normalized, valueHash, allowFuzzy, origin | Numbers in +233 format; partner numbers stored as keyed hashes only |
-| **records** | entityId, sourceId, type (warning, licence, sandbox, registration, foreign_alert, sanction), jurisdiction, licenseType, quote, effectiveOn, endsOn, status, capturedBy, reviewedBy, reviewedAt | **Active needs a reviewer different from the capturer** |
+| **entities** | name, slug, kind (platform, company, token, app, merchant, authority), country, allowFuzzy, isDemo | Replaces `Investment` |
+| **identifiers** | entityId, type (name, domain, momo_number, bank_account, wallet, social_handle, telegram_link, tiktok_handle, merchant_id), raw, normalized, valueHash, allowFuzzy, origin (notice, partner, merchant, review, legacy), isDemo | Numbers in +233 format. Partner data, and any number not published in a notice, stored as keyed hashes only |
+| **records** | entityId, sourceId, type (warning, licence, sandbox, registration, foreign_alert, sanction), jurisdiction, licenseType, quote, effectiveOn, endsOn, status (pending, active, expired, withdrawn), capturedBy, reviewedBy, reviewedAt, isDemo | **Active needs a source, a quote, and a reviewer different from the capturer** |
 | **relations** | fromEntity, toEntity, type (impersonates, claims_affiliation, renamed_from, same_operator), sourceId, status | Real companies appear only as impersonated |
-| **organizations** | name, type (bank, momo, psp, vasp, merchant, regulator, qwench), status, isDemo | |
+| **organizations** | name, type (bank, momo, psp, vasp, merchant, regulator, qwench), status, confirmationCallLimitGhs, warnsOnPartnerData, isDemo | |
 | **users** | orgId, email, passwordHash, role (analyst, org_admin, reviewer, regulator) | Team login only; no public sign-up |
-| **apiKeys** | orgId, keyHash, prefix, scopes, rateLimit, revokedAt | Store the hash only |
-| **checks** | hourBucket, channel, inputType, identifierHashes, matchedEntityIds, state, tier, flags, senderHash | **No raw query.** The sender hash uses a daily salt and is deleted after 24 hours |
+| **apiKeys** | orgId, keyHash, prefix, scopes, rateLimit, revokedAt, lastUsedAt | Store a keyed hash only |
+| **check_events** | hourBucket, channel, inputType, identifierHashes, matchedEntityIds, state, tier, flags, outcome, isDemo | **No raw query, no sender and no exact time** |
+| **senderDays** | senderHash, day, count, expiresAt | Fair-use limit only. Daily salt; deleted after 24 hours |
 | **contributions** | orgId, schemeName, identifiers, terms, region, lossBand, evidenceRefs, reviewStatus, isDemo | Scheme details only |
-| **publicReports** | schemeName, identifiers, source, evidenceRefs, reviewStatus | Never shown publicly; replaces `Report` |
-| **signals** | key, weekStart, checksThisWeek, checksLastWeek, distinctSources, anomalyFlag, reviewStatus | Worked out from `checks` |
+| **publicReports** | schemeName, identifiers, source, evidenceRefs, reviewStatus, expiresAt | Never shown publicly; replaces `Report`. Unconfirmed reports expire after 90 days |
+| **signals** | key, weekStart, checksThisWeek, checksLastWeek, distinctSources, anomalyFlag, reviewStatus | Worked out from `check_events` |
 | **cases** | caseNumber, type (scheme, impersonation), trigger, identifiers, checks[], evidenceRefs, tier, status, referrals[], outcome, ownerId | Every change logged |
 | **merchants** | entityId, legalName, verificationMethod, documentRefs, officialIdentifiers, status, verifiedBy, verifiedAt, renewalDue | "Registered by the business", never "safe" |
 | **brandWatches** | orgId, brandName, officialDomains, officialNumbers, keywords, status | |
@@ -222,7 +223,7 @@ Show honest empty states: *"No member reports yet."*
 ## 10. Security and data protection
 - API keys and console login required; passwords and keys stored hashed.
 - CORS limited to your own domains; rate limits on all endpoints; input validation.
-- `PHONE_HASH_SALT` and the HMAC key required at start-up, with no default values.
+- `PHONE_HASH_SALT`, `HMAC_SECRET_KEY` and `JWT_SECRET` required at start-up, with no default values.
 - No raw queries, phone numbers or message text in the database or logs.
 - **Retention:** sender hashes 24 hours, unconfirmed reports 90 days, checks summarised after 12 months. Decide evidence-file retention with your lawyer.
 - Audit log on all reviews and tier changes.

@@ -34,6 +34,17 @@ The bot calls `/api/check`, `/api/report`, `/api/trending`, `/api/verify-name`,
 `/tmp` if needed. Stop and report if free space falls below 150 MB. Model names can't be
 checked without a key, so list that as not done. Everything must work with no AI provider.
 
+## Progress
+| Phase | Status | Commit on `backend-v1` |
+|---|---|---|
+| 0 Setup | Done | `a63f1cd` |
+| 1 Data model | Done | `4158cef` |
+| 2 onwards | Not started | |
+
+Known bugs from the review that are still open, by phase:
+- **Phase 3:** near-miss names returned as matches, foreign alerts at tier 1, tier 3 reached by one organisation or unreviewed contributions, numbers flagged without review, expired records still counted, suggested actions, partner numbers not found by a check.
+- **Phase 4:** `isPublicHttpUrl`.
+
 ## Rules that must never break
 1. No scores, verdicts or advice anywhere in `/v1`.
 2. Qwench's own wording never says "safe", "scam", "verified" or "fraudulent".
@@ -75,8 +86,8 @@ checked without a key, so list that as not done. Everything must work with no AI
 ```
 src/models/        new models
 src/engine/        normalize, extract, match, state, tier, report, templates
-src/routes/v1/     public, institution, console routes
-src/middleware/    apiKey, session, channelKey, rateLimit
+src/routes/        public.js, institutional.js, plus new console routes (existing files stay where they are)
+src/middleware/    apiKeyAuth, rateLimiter, validate, errorHandler, plus session and channelKey
 src/scripts/       import-reviewed, migrate-legacy, seed-demo
 test/
 docs/API.md
@@ -89,16 +100,16 @@ Create these models. Add indexes on anything used for lookup.
 |---|---|---|
 | `Source` | publisher, type, title, url, publishedOn, retrievedAt, archiveUrl, isOfficial, isDemo | Every record needs one |
 | `Entity` | name, slug, aliases, kind (platform, company, token, app, merchant, authority), country, allowFuzzy, isDemo | Replaces `Investment` in `/v1` |
-| `Identifier` | entityId, type (name, domain, momo_number, bank_account, wallet, social_handle, telegram_link, tiktok_handle, merchant_id), raw, normalized, valueHash, origin (notice, partner, merchant, review), isDemo | Partner origin: `raw` and `normalized` stay empty |
+| `Identifier` | entityId, type (name, domain, momo_number, bank_account, wallet, social_handle, telegram_link, tiktok_handle, merchant_id), raw, normalized, valueHash, origin (notice, partner, merchant, review, legacy), isDemo | Partner origin: `raw` and `normalized` stay empty. MoMo and bank numbers keep no readable form unless the origin is `notice`, because a notice is already public and the feed publishes it |
 | `Record` | entityId, sourceId, type (warning, licence, sandbox, registration, foreign_alert, sanction), jurisdiction, licenseType, quote, effectiveOn, endsOn, status (pending, active, expired, withdrawn), capturedBy, reviewedBy, reviewedAt, isDemo | Validation rejects `active` without a source, a quote, or with reviewer equal to capturer |
 | `Relation` | fromEntity, toEntity, type (impersonates, claims_affiliation, renamed_from, same_operator), sourceId, status | Real companies appear only as impersonated |
 | `Organization` | name, type (bank, momo, psp, vasp, merchant, regulator, qwench), status, confirmationCallLimitGhs, warnsOnPartnerData, isDemo | |
 | `User` | orgId, email, passwordHash, role (analyst, org_admin, reviewer, regulator) | bcrypt; no public sign-up |
-| `ApiKey` | orgId, keyHash, prefix, scopes, rateLimit, revokedAt, lastUsedAt | SHA-256 hash only; show the full key once |
-| `CheckEvent` | hourBucket, channel, inputType, identifierHashes, matchedEntityIds, state, tier, flags, isDemo | Collection `check_events`, because the old `Check` model owns `checks`. No exact time and no sender |
+| `ApiKey` | orgId, keyHash, prefix, scopes, rateLimit, revokedAt, lastUsedAt | Keyed HMAC-SHA256 hash only, using `HMAC_SECRET_KEY`; show the full key once |
+| `Check` | hourBucket, channel, inputType, identifierHashes, matchedEntityIds, state, tier, flags, outcome, legacyId, isDemo | Collection `check_events`, because the old `LegacyCheck` model owns `checks`. No exact time and no sender |
 | `SenderDay` | senderHash, day, count, expiresAt | TTL deletes after 24 hours; daily salt |
 | `Contribution` | orgId, schemeName, identifiers, terms, region, lossBand, evidenceRefs, reviewStatus, isDemo | Scheme details only |
-| `PublicReport` | schemeName, identifierHashes, source, evidenceRefs, reviewStatus, expiresAt | Never returned publicly; unconfirmed reports expire after 90 days |
+| `PublicReport` | schemeName, identifiers (type and valueHash), source, evidenceRefs, reviewStatus, expiresAt | Never returned publicly; unconfirmed reports expire after 90 days |
 | `Signal` | key, weekStart, checksThisWeek, checksLastWeek, distinctSources, anomalyFlag, reviewStatus | Worked out from `CheckEvent` |
 | `Case` | caseNumber, type (scheme, impersonation), trigger, identifiers, checks, evidenceRefs, tier, status (open, under_review, referred, confirmed, dismissed, closed), referrals, outcome, ownerId, isDemo | Every change logged |
 | `Merchant` | entityId, legalName, verificationMethod, documentRefs, officialIdentifiers, status, verifiedBy, verifiedAt, renewalDue, isDemo | |
@@ -184,7 +195,7 @@ Build it in `src/engine/` as pure functions where possible, with this flow:
 9. **Report:** fixed templates produce `state_sentence`, `sources`, `return_check`,
    `warning_signs`, `questions_to_ask` and `footer`. The footer gives the data date,
    SEC 0800 100 065, CSA 292 and "Information, not advice."
-10. **Log:** write a `CheckEvent` with hashes only, without blocking the response.
+10. **Log:** write a `Check` row with hashes only, without blocking the response.
 
 Don't import `riskEngine.js`, `coingecko.js` or `goplus.js` into `/v1`.
 
@@ -308,7 +319,7 @@ Do Phases 7 to 10 in this order. If time runs out, stop and they stay "Next" in 
 - Show "reported by N members", counting independent organisations. Never name them.
 - Record verified contributions per organisation for later fee credits.
 - Flag spikes in contributions against one identifier for review.
-- Build a scheduled job to work out `Signal` from `CheckEvent`.
+- Build a scheduled job to work out `Signal` from `Check` rows.
 - `GET /v1/signals` returns reviewed signals only.
 - Before any real partner data goes in, a data-sharing agreement is required. Until then, demo data only, labelled.
 

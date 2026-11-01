@@ -14,8 +14,8 @@ import { apiKeyAuth } from "../middleware/apiKeyAuth.js";
 import { institutionalLimiter } from "../middleware/rateLimiter.js";
 import { checkRules, contributionRules, feedRules, merchantNumberRules } from "../middleware/validate.js";
 import { buildIdentifier, hashIdentifier, normalizeIdentifier } from "../lib/identifiers.js";
-import { Case, Contribution, Identifier, Merchant, Record, Relation, Signal, recordAudit } from "../models/index.js";
-import { allowedUse, performCheck } from "../services/checkService.js";
+import { Case, Contribution, Entity, Identifier, Merchant, Record, Relation, Signal, recordAudit } from "../models/index.js";
+import { evaluate } from "../services/evidenceEngine.js";
 import { logCheck } from "../utils/logCheck.js";
 
 const router = Router();
@@ -25,44 +25,66 @@ const router = Router();
  * ------------------------------------------------------------------ */
 
 router.post("/check", apiKeyAuth("check"), institutionalLimiter, checkRules, async (req, res, next) => {
-  const { recipient, type, new_payee: newPayee = false } = req.body;
-  const checkedAt = new Date().toISOString();
+  const { recipient, type, amount_ghs: amountGhs, new_payee: newPayee = false } = req.body;
 
   try {
-    const result = await performCheck({ recipient, type, newPayee });
+    const result = await evaluate({ recipient, type, amount_ghs: amountGhs, new_payee: newPayee });
 
     await logCheck({
       channel: "api",
       inputType: inputTypeFor(type),
-      identifierHashes: [result.valueHash],
-      matchedEntityIds: result.entity ? [result.entity._id] : [],
+      identifierHashes: [result.value_hash],
+      matchedEntityIds: result.entity_id ? [result.entity_id] : [],
       state: result.state,
       tier: result.tier,
-      flags: result.reasonCodes || [],
-      outcome: result.suggestedAction,
+      flags: result.reason_codes,
+      outcome: result.suggested_action,
     });
 
-    if (!result.match) return res.json({ match: false, checked_at: checkedAt });
+    if (result.needs_confirmation) {
+      return res.json({ match: false, did_you_mean: result.did_you_mean, checked_at: result.checked_at });
+    }
 
-    // Impersonation links, so an institution can see whose brand is being used.
-    const relations = await Relation.find({ fromEntity: result.entity._id, status: "active" })
-      .populate("toEntity", "name slug kind")
-      .lean();
+    if (!result.match) {
+      return res.json({
+        match: false,
+        state: result.state,
+        tier: result.tier,
+        reason_codes: result.reason_codes,
+        note: "No record found. This does not mean it is safe or unsafe.",
+        checked_at: result.checked_at,
+      });
+    }
 
-    const signal = await Signal.findOne({ key: result.entity.slug, anomalyFlag: true, reviewStatus: "reviewed" })
-      .sort({ weekStart: -1 })
+    // The institutional shape is the same verdict with fuller provenance:
+    // the quote from the notice, the archive link, and who is being
+    // impersonated. The decision itself is identical to the public one.
+    const [entity, records, relations, signal] = await Promise.all([
+      Entity.findById(result.entity_id).select("name slug kind country").lean(),
+      Record.find({ entityId: result.entity_id, status: "active" }).populate("sourceId").lean(),
+      Relation.find({ fromEntity: result.entity_id, status: "active" }).populate("toEntity", "name slug kind").lean(),
+      Signal.findOne({
+        key: { $in: [String(result.entity_id), result.entity_slug] },
+        anomalyFlag: true,
+        reviewStatus: "reviewed",
+      })
+        .sort({ weekStart: -1 })
+        .lean(),
+    ]);
+
+    const merchant = await Merchant.findOne({ entityId: result.entity_id, status: "verified" })
+      .select("legalName verifiedAt")
       .lean();
 
     return res.json({
       match: true,
-      entity: result.entity.name,
-      entity_slug: result.entity.slug,
-      entity_kind: result.entity.kind,
+      entity: result.entity,
+      entity_slug: result.entity_slug,
+      entity_kind: entity?.kind || null,
       state: result.state,
       tier: result.tier,
-      reason_codes: result.reasonCodes,
-      match_type: result.matchType,
-      sources: result.records
+      reason_codes: result.reason_codes,
+      sources: records
         .filter((r) => r.sourceId)
         .map((r) => ({
           publisher: r.sourceId.publisher,
@@ -81,8 +103,8 @@ router.post("/check", apiKeyAuth("check"), institutionalLimiter, checkRules, asy
         to_entity: rel.toEntity?.name || null,
         to_entity_slug: rel.toEntity?.slug || null,
       })),
-      merchant_claim: result.merchantClaim.registered
-        ? { registered: true, business: result.merchantClaim.business, verified_at: result.merchantClaim.verifiedAt }
+      merchant_claim: merchant
+        ? { registered: true, business: merchant.legalName, verified_at: merchant.verifiedAt }
         : { registered: false },
       signal: signal
         ? {
@@ -92,9 +114,12 @@ router.post("/check", apiKeyAuth("check"), institutionalLimiter, checkRules, asy
             week_start: signal.weekStart,
           }
         : null,
-      allowed_use: allowedUse(result.tier),
-      suggested_action: result.suggestedAction,
-      checked_at: checkedAt,
+      warning_signs: result.warning_signs,
+      return_check: result.return_check,
+      questions_to_ask: result.questions_to_ask,
+      allowed_use: result.allowed_use,
+      suggested_action: result.suggested_action,
+      checked_at: result.checked_at,
     });
   } catch (err) {
     next(err);

@@ -1,13 +1,8 @@
 import "dotenv/config";
 
-import cors from "cors";
-import express from "express";
-
+import { createApp } from "./app.js";
 import { connectDB } from "./config/db.js";
 import { requireSecrets } from "./config/env.js";
-import { errorHandler, notFound } from "./middleware/errorHandler.js";
-import apiRoutes from "./routes/api.js";
-import v1Routes from "./routes/index.js";
 import { checkLlmStatus } from "./services/aiAnalyzer.js";
 import { bootstrapSecData } from "./services/bootstrapData.js";
 
@@ -19,58 +14,8 @@ if (!process.env.MONGODB_URI) {
   process.exit(1);
 }
 
-const app = express();
+const app = createApp();
 const PORT = process.env.API_PORT || 4000;
-
-// Behind a proxy the client IP arrives in X-Forwarded-For; without this the
-// public rate limiter would see every request as coming from one address.
-app.set("trust proxy", 1);
-
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "http://localhost:3000")
-  .split(",")
-  .map((o) => o.trim())
-  .filter(Boolean);
-
-app.use(
-  cors({
-    origin: ALLOWED_ORIGINS,
-    credentials: true,
-  })
-);
-app.use(express.json({ limit: "12mb" }));
-
-// Simple request logger so you can watch the bot hitting the API during the demo.
-app.use((req, _res, next) => {
-  console.log(`[api] ${req.method} ${req.originalUrl}`);
-  next();
-});
-
-app.get("/health", async (_req, res) => {
-  const llm = await checkLlmStatus();
-  res.json({
-    ok: true,
-    service: "qwench-api",
-    llm: {
-      connected: Boolean(llm.ok),
-      provider: llm.provider,
-      model: llm.model,
-      error: llm.error || llm.reason || null,
-      latencyMs: llm.latencyMs || null,
-    },
-    time: new Date().toISOString(),
-  });
-});
-
-// The /v1 contract: public (rate-limited, no auth) and institutional (API key).
-app.use("/v1", v1Routes);
-
-// The original bot API. Still serving the WhatsApp bot, which has not been
-// migrated to /v1 yet. Note it returns risk scores and recommendations, which
-// /v1 deliberately never does — see the note in README before exposing it.
-app.use("/api", apiRoutes);
-
-app.use(notFound);
-app.use(errorHandler);
 
 await connectDB();
 

@@ -11,6 +11,7 @@
 import { Router } from "express";
 
 import { apiKeyAuth } from "../middleware/apiKeyAuth.js";
+import { sendError } from "../middleware/errorHandler.js";
 import { institutionalLimiter } from "../middleware/rateLimiter.js";
 import { checkRules, contributionRules, feedRules, merchantNumberRules } from "../middleware/validate.js";
 import { buildIdentifier, hashIdentifier, normalizeIdentifier } from "../lib/identifiers.js";
@@ -224,7 +225,7 @@ router.get("/signals", apiKeyAuth("signals"), institutionalLimiter, async (req, 
 router.get("/cases/:id", apiKeyAuth("cases"), institutionalLimiter, async (req, res, next) => {
   try {
     const caseDoc = await Case.findOne({ caseNumber: req.params.id }).lean();
-    if (!caseDoc) return res.status(404).json({ error: "Case not found", code: 404 });
+    if (!caseDoc) return sendError(res, 404, "case_not_found", "Case not found");
 
     // ownerId and the hashed identifiers stay internal: who is investigating is
     // not an institution's business.

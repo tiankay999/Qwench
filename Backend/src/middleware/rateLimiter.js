@@ -1,4 +1,8 @@
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
+
+import { sendError } from "./errorHandler.js";
+
+const tooMany = (_req, res) => sendError(res, 429, "rate_limited", "Too many requests. Try again in 60 seconds.");
 
 /**
  * Public endpoints: 30 requests per minute per IP.
@@ -8,8 +12,7 @@ export const publicLimiter = rateLimit({
   max: 30,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: "Too many requests. Try again in 60 seconds.", code: 429 },
-  handler: (_req, res) => res.status(429).json({ error: "Too many requests. Try again in 60 seconds.", code: 429 }),
+  handler: tooMany,
 });
 
 /**
@@ -24,6 +27,6 @@ export const institutionalLimiter = rateLimit({
   max: (req) => req.apiKeyRateLimit || 100,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => (req.apiKeyId ? `key:${req.apiKeyId}` : `ip:${req.ip}`),
-  handler: (_req, res) => res.status(429).json({ error: "Too many requests. Try again in 60 seconds.", code: 429 }),
+  keyGenerator: (req) => (req.apiKeyId ? `key:${req.apiKeyId}` : `ip:${ipKeyGenerator(req.ip)}`),
+  handler: tooMany,
 });

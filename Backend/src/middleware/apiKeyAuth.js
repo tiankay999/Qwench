@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 
 import { ApiKey, hashApiKey } from "../models/index.js";
+import { sendError } from "./errorHandler.js";
 
 /**
  * Institutional authentication.
@@ -15,7 +16,7 @@ export function apiKeyAuth(requiredScope) {
     const raw = req.headers["x-api-key"];
 
     if (!raw || typeof raw !== "string") {
-      return res.status(401).json({ error: "API key required", code: 401 });
+      return sendError(res, 401, "api_key_required", "API key required");
     }
 
     let keyHash;
@@ -38,11 +39,11 @@ export function apiKeyAuth(requiredScope) {
     const valid = apiKey && timingSafeEqual(apiKey.keyHash, keyHash);
     if (!valid) {
       console.warn(`[auth] rejected API key with prefix "${String(raw).slice(0, 8)}"`);
-      return res.status(401).json({ error: "Invalid or revoked API key", code: 401 });
+      return sendError(res, 401, "invalid_api_key", "Invalid or revoked API key");
     }
 
     if (requiredScope && !(apiKey.scopes || []).includes(requiredScope)) {
-      return res.status(403).json({ error: "Insufficient scope for this endpoint", code: 403 });
+      return sendError(res, 403, "insufficient_scope", "Insufficient scope for this endpoint");
     }
 
     req.org = apiKey.orgId;

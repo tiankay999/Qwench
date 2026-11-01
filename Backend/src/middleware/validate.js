@@ -1,6 +1,7 @@
 import { body, query, validationResult } from "express-validator";
 
 import { IDENTIFIER_TYPES } from "../lib/identifiers.js";
+import { sendError } from "./errorHandler.js";
 
 /**
  * Input validation for every endpoint.
@@ -11,13 +12,13 @@ import { IDENTIFIER_TYPES } from "../lib/identifiers.js";
  * when a bot sends more than it should.
  */
 
-/** Collect express-validator errors into the contract's error shape. */
+/** Collect express-validator errors into the /v1 error shape. */
 export function handleValidation(req, res, next) {
   const result = validationResult(req);
   if (result.isEmpty()) return next();
 
   const first = result.array()[0];
-  return res.status(400).json({ error: `Invalid input: ${first.msg}`, code: 400 });
+  return sendError(res, 400, "invalid_input", `Invalid input: ${first.msg}`);
 }
 
 /** Drop any field the endpoint did not declare. */

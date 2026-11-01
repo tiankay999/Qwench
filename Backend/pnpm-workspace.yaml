@@ -1,4 +1,6 @@
 allowBuilds:
-  # Qwench does not use bcrypt (phone numbers are hashed with node:crypto sha256),
-  # so its native build is skipped to keep installs clean.
+  # bcrypt ships prebuilt binaries, so its native build is not needed.
   bcrypt: false
+  # Its install script only downloads MongoDB. Tests fetch it on first run, to
+  # the directory set in test/helpers/setup.js.
+  mongodb-memory-server: false

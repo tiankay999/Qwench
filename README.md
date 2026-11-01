@@ -116,6 +116,58 @@ their full registered names.
 
 ---
 
+## The /v1 API
+
+Two layers, mounted alongside the original bot API.
+
+**Public** — no auth, 30 req/min per IP:
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| POST | `/v1/public/check` | `{ recipient, type, amount_ghs, new_payee }` → match, legal state, tier, reason codes, sources |
+
+**Institutional** — `x-api-key` header, per-key rate limit, scope-checked:
+
+| Method | Route | Scope |
+| --- | --- | --- |
+| POST | `/v1/check` | `check` — same verdict logic, fuller sources, relations, signals |
+| GET | `/v1/feed?since=` | `feed` — new/changed records, JSON or CSV |
+| POST | `/v1/contributions` | `contributions` — member orgs share scheme details |
+| GET | `/v1/signals` | `signals` — reviewed spikes only |
+| GET | `/v1/cases/:caseNumber` | `cases` |
+| POST | `/v1/merchants/verify-number` | `merchants` |
+
+**What `/v1` never returns:** risk scores, verdicts, colours, recommendations, who
+contributed data, who ran a check, or any raw number or message text. `licensed`,
+`sandbox` and `registered` are **legal states, not warnings** — a licensed firm comes
+back with `tier: null`, no reason codes and `suggested_action: "none"`.
+
+Only a tier-1 (regulator-grade) finding is `allowed_use: "customer_warning"`. Everything
+else is `internal_only`: telling a customer their payee is suspect on thinner evidence
+is an accusation Qwench cannot stand behind.
+
+**Records must be reviewed before they match.** `/v1/check` reads only
+`status: "active"` records, and the migration leaves every imported record
+`under_review` by design. Until a second person signs them off, a check resolves the
+entity but reports `no_record`. Sign off with:
+
+```bash
+node src/scripts/reviewRecords.js --reviewer "you@example.com" --dry-run
+node src/scripts/reviewRecords.js --reviewer "you@example.com"
+```
+
+That is a bulk approval — mechanically four-eyes clean (the reviewer must differ from
+the capturer, and every activation is audited), but one person approving a whole
+register in one command is a governance shortcut. Review individually for anything
+beyond bootstrapping an import.
+
+> **The old `/api/*` routes break the `/v1` rules.** They return risk scores, verdicts
+> and recommendation text, which `/v1` forbids. They are still mounted because the
+> WhatsApp bot depends on them; migrating the bot onto `/v1/public/check` is the
+> outstanding piece. Do not expose `/api/*` to institutions.
+
+---
+
 ## Data sources
 
 **1. SEC Ghana register** — `src/data/sec-ghana.json`, loaded into MongoDB on every

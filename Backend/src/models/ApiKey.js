@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import mongoose from "mongoose";
 
-export const API_SCOPES = ["check", "feed", "contributions", "signals"];
+export const API_SCOPES = ["check", "feed", "contributions", "signals", "cases", "merchants"];
 
 /**
  * Institutional API access. Only the hash of a key is stored -- the raw key is

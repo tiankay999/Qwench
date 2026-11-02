@@ -46,6 +46,51 @@ export const LINK_FACTS = {
 
 export const linkFact = (name, values = {}) => fill(LINK_FACTS[name], values);
 
+/**
+ * How much evidence Qwench has, set by fixed rules. It grades the evidence, never the
+ * scheme, so there is no "safe", no "unsafe", no number and no likelihood. AI has no say
+ * in it: signs AI spots are shown, but aren't counted. Members-only levels can't reach a
+ * public reply, because partner data, reports and signals are masked before this runs.
+ */
+export const EVIDENCE_LEVELS = {
+  regulator_warning: { label: "Regulator warning", meaning: "A Ghana regulator or sanctions list has named this." },
+  reviewed_impersonation: { label: "Reviewed impersonation", meaning: "Two people at Qwench reviewed this and found it using a business's name." },
+  foreign_alert: { label: "Alert from a regulator abroad", meaning: "A regulator outside Ghana published an alert. No Ghana regulator record was found." },
+  many_signs: { label: "Many warning signs, no regulator record", meaning: "No regulator has named this, but several warning signs were found. See them below." },
+  some_signs: { label: "Some warning signs, no regulator record", meaning: "No regulator has named this, but a warning sign was found. See below." },
+  on_regulator_list: { label: "On a regulator's list", meaning: "This name is on a regulator's list. This doesn't mean an investment will pay, or that the person contacting you is really from this firm." },
+  registered_business: { label: "Registered by a business", meaning: "A business registered this number with Qwench. This shows who controls the number, and nothing more." },
+  regulator_or_public_body: { label: "Regulator or public body", meaning: "This is a regulator or public body, not an investment." },
+  member_confirmed: { label: "Confirmed by a member", meaning: "A member organisation confirmed this. For internal use unless your organisation has agreed otherwise." },
+  corroborated_reports: { label: "Corroborated reports", meaning: "Reports from independent sources, reviewed by a person. For internal review." },
+  rise_in_checks: { label: "Reviewed rise in checks", meaning: "Checks on this have risen, and a person reviewed it. For watching only." },
+  not_enough: { label: "Not enough to go on", meaning: "Qwench found no regulator record and no warning signs. That doesn't tell you either way, so check further before you pay." },
+};
+
+const MANY_SIGNS = 3;
+
+function levelCode({ state, tier, impersonated, foreignContext = [], merchantClaim, signCount = 0 }) {
+  if (state === "named_in_notice") return "regulator_warning";
+  if (impersonated) return "reviewed_impersonation";
+  if (state === "authority") return "regulator_or_public_body";
+  if (state === "registered" && merchantClaim) return "registered_business";
+  if (["licensed", "sandbox", "registered"].includes(state)) return "on_regulator_list";
+  if (tier === 2) return "member_confirmed";
+  if (tier === 3) return "corroborated_reports";
+  if (tier === 4) return "rise_in_checks";
+  if (foreignContext.length) return "foreign_alert";
+  if (signCount >= MANY_SIGNS) return "many_signs";
+  if (signCount >= 1) return "some_signs";
+  return "not_enough";
+}
+
+export function evidenceLevel(input) {
+  const code = levelCode(input);
+  return { code, ...EVIDENCE_LEVELS[code] };
+}
+
+export const DISCLAIMER = "This is not a final ruling. It reflects what Qwench could check today. If it's wrong, you can appeal.";
+
 const FOOTER = {
   dated: "Data as of {date}.",
   empty: "No reviewed records are loaded yet.",
@@ -75,6 +120,8 @@ export const ALL_TEMPLATES = Object.fromEntries(
     RETURN_NOTE,
     ALSO_CHECKED,
     ...NOTES,
+    DISCLAIMER,
+    ...Object.fromEntries(Object.entries(EVIDENCE_LEVELS).flatMap(([k, v]) => [[`level_${k}_label`, v.label], [`level_${k}_meaning`, v.meaning]])),
     ...Object.fromEntries(Object.entries(LINK_FACTS).map(([k, v]) => [`link_fact_${k}`, v])),
     ...Object.fromEntries(Object.entries(QUESTIONS).flatMap(([state, list]) => list.map((q, i) => [`question_${state}_${i}`, q]))),
     ...Object.fromEntries(WARNING_SIGN_TEMPLATES.map((sign, i) => [`warning_sign_${i}`, sign])),
@@ -133,7 +180,7 @@ function stateSentence({ state, entity, sources, merchantClaim, didYouMean, impe
   return NO_RECORD_SENTENCE;
 }
 
-export function buildReport({ state, entity, sources = [], foreignContext = [], merchantClaim, didYouMean, impersonated, text, dataDate, isDemo = false }) {
+export function buildReport({ state, tier = null, entity, sources = [], foreignContext = [], merchantClaim, didYouMean, impersonated, text, dataDate, isDemo = false }) {
   const signs = warningSigns(text);
   const questions = [...(QUESTIONS[impersonated ? "impersonation" : state] || []), ...(signs.length > 2 ? [SENT_MONEY] : [])];
   const sentence = stateSentence({ state, entity, sources, merchantClaim, didYouMean, impersonated });
@@ -149,6 +196,8 @@ export function buildReport({ state, entity, sources = [], foreignContext = [], 
     link_facts: [],
     questions_to_ask: questions,
     notes: [],
+    evidence_level: evidenceLevel({ state, tier, impersonated, foreignContext, merchantClaim, signCount: signs.length }),
+    disclaimer: DISCLAIMER,
     footer: `${dataDate ? fill(FOOTER.dated, { date: dataDate }) : FOOTER.empty} ${FOOTER.contacts}`,
   };
 }

@@ -418,6 +418,15 @@ test("a reviewed impersonation is tier 2, and institutions may warn customers", 
   assert.equal(r.suggested_action, "warn");
 });
 
+test("a reviewed impersonation has its own evidence level, in public too", async () => {
+  const real = await registeredMerchant();
+  const fake = await makeEntity("Fixture Fake Shop", { domain: "fake-shop.test" });
+  await Relation.create({ fromEntity: fake._id, toEntity: real._id, type: "impersonates", ...reviewedBy });
+  const body = await publicCheck({ recipient: "fake-shop.test", type: "domain" });
+  assert.equal(body.report.evidence_level.code, "reviewed_impersonation");
+  assert.match(body.report.disclaimer, /not a final ruling/);
+});
+
 test("a reviewed impersonation is shown publicly, naming the business", async () => {
   const real = await registeredMerchant();
   const fake = await makeEntity("Fixture Fake Shop", { domain: "fake-shop.test" });

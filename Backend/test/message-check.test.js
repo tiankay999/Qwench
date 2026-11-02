@@ -299,6 +299,41 @@ test("faint text in an image gets a sign, from AI", async () => {
   assert.deepEqual(result.report.ai_warning_signs, ["The image seems to have faint or hidden text."]);
 });
 
+/* --- Evidence levels ---------------------------------------------------- */
+
+const LOADS_OF_AI_FLAGS = [
+  { code: "famous_endorsement", quote: "Celebrity Fixture" },
+  { code: "official_imagery" },
+  { code: "payout_screenshots" },
+  { code: "hidden_text" },
+];
+
+test("signs AI spots are shown, but never raise the level", async () => {
+  const readImage = provider({ extracted_text: "Celebrity Fixture uses this", red_flags: LOADS_OF_AI_FLAGS });
+  const { result } = await checkMessage({ image_base64: "eA==", mime_type: "image/png" }, { readImage });
+  assert.ok(result.report.ai_warning_signs.length >= 3);
+  assert.equal(result.report.evidence_level.code, "not_enough");
+});
+
+test("link facts count toward the level", async () => {
+  const scrape = async (url) => ({ error: false, title: "", bodyText: "Offer", finalUrl: url, isHttps: false, hasLoginForm: true, hasPaymentForm: true });
+  const { result } = await checkMessage({ urls: ["http://first.com"] }, { scrape, readPage: noAi, domainAge: async () => null });
+  assert.equal(result.report.link_facts.length, 3);
+  assert.equal(result.report.evidence_level.code, "many_signs");
+});
+
+test("a notice in a message is a regulator warning, whatever else is there", async () => {
+  const { result } = await checkMessage({ text: "Fixture Scheme, tell nobody, guaranteed. Pay 0240000099" });
+  assert.equal(result.report.evidence_level.code, "regulator_warning");
+});
+
+test("an unknown number with several signs reads as many signs, with no status change", async () => {
+  const { result } = await checkMessage({ text: "Pay 0240000099. Guaranteed returns. Tell nobody. Refer 5 friends." });
+  assert.equal(result.report.evidence_level.code, "many_signs");
+  assert.equal(result.state, "no_record");
+  assert.equal(result.tier, null);
+});
+
 test("AI can't change a status, tier or wording", async () => {
   const readImage = async () => ({ extracted_text: "Hello", state: "licensed", tier: 1, verdict: "bad", entities_mentioned: [], numbers_found: [], domains_found: [], wallets_found: [] });
   const { result } = await checkMessage({ image_base64: "eA==", mime_type: "image/png" }, { readImage });

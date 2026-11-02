@@ -27,7 +27,7 @@ Stay in your own area. If you need something from another owner, list it for the
 
 ## Rules that must never break
 
-1. No scores, verdicts or advice in `/v1`, the bots, the web app or the console.
+1. No scores, verdicts or advice in `/v1`, the bots, the web app or the console. Evidence levels are allowed: they grade the evidence, never the scheme, and are set by fixed rules.
 2. Qwench's own wording never says "safe", "scam", "verified" or "fraudulent". Exact
    regulator quotes are allowed. So is this one sentence: "This does not mean it is safe or unsafe."
 3. Qwench never blocks a payment, holds money or contacts a suspect.
@@ -67,7 +67,7 @@ Stay in your own area. If you need something from another owner, list it for the
 - **Appeals:** replies answer only about what is publicly shown, and never confirm or deny internal data.
 - **AI:** it only reads images and linked pages for the evidence engine. It never decides. Rules run first, every check works without it, and an image-based result is labelled. Tested against real `gemini-3.5-flash-lite` with made-up flyers on 2 November 2026, not yet real screenshots. What it reads is never shown, and is kept even if it holds banned words, so a flyer's wording can't hide it from the check.
 - **AI red flags:** Dre decided on 2 November 2026 that AI should spot red flags. It picks from a fixed list and quotes its proof. Qwench checks the proof and uses fixed wording, shown apart as `ai_warning_signs` and labelled. They change no status or tier.
-- **Open question, verdicts:** Dre asked on 2 November 2026 whether a disclaimer could allow a graded verdict on safety. Rules 1 and 2 still stand until he decides.
+- **Evidence levels:** Dre chose this on 2 November 2026, over real verdicts. Every reply leads with `report.evidence_level` and carries a disclaimer that it isn't a final ruling and can be appealed. A disclaimer alone isn't a legal shield, so the wording goes to a lawyer before real users. Signs AI spots don't count toward the level.
 - **Untrusted material:** flyers and pages are data, never instructions. Hidden page text and faint image text never feed a check, so they can't trigger or frame a finding. Text aimed at AI becomes a warning sign.
 - **Checking an offer:** after the hackathon, the merchant registry extends into an official registry of contacts and listed offers. Qwench reports whether these match and never calls an offer legitimate. Keep the "merchant registry" name and the `Merchant` code until then. See `02-build-spec.md`.
 - **Evidence engine:** `src/services/evidenceEngine.js` is the only engine. `checkService.js` is deprecated.

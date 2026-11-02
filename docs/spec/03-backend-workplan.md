@@ -45,6 +45,7 @@ The bot calls `/api/check`, `/api/report`, `/api/trending`, `/api/verify-name`,
 | 3 Evidence engine | Done | `8cef2b8` |
 | Public replies reveal nothing hidden | Done | `d505d29` |
 | 4 Public API | Done | `83aeeb6` |
+| Evidence levels, disclaimer | Done | `9881a0c` |
 | Link facts, domain age, more text rules | Done | `619b674` |
 | AI red flags, hidden-text defences | Done | `7b05c02` |
 | Real AI test, image fixes | Done | `e0ca91e` |
@@ -53,8 +54,10 @@ The bot calls `/api/check`, `/api/report`, `/api/trending`, `/api/verify-name`,
 
 Known bugs from the review that are still open, by phase:
 
+**External sources not built yet:** ASIC and OFAC files, the Wayback Machine, and GoPlus as labelled context for contract addresses. All are in `02-build-spec.md`.
+
 ## Rules that must never break
-1. No scores, verdicts or advice anywhere in `/v1`.
+1. No scores, verdicts or advice anywhere in `/v1`. Evidence levels are allowed: they grade the evidence, never the scheme, and are set by fixed rules.
 2. Qwench's own wording never says "safe", "scam", "verified" or "fraudulent".
    Exact regulator quotes are allowed. So is this one sentence:
    "This does not mean it is safe or unsafe."

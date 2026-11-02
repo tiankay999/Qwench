@@ -94,6 +94,10 @@ Yes, and they'll see only what is already public: regulator and sanctions record
 
 It can try, and we test for it. The AI only reads and has no tools, so it can't act on anything. Status, tier and wording come from reviewed records and fixed templates, so it has no way to change a result. Hidden text never feeds a check, and text aimed at AI becomes a warning sign in the reply.
 
+**Why won't you just say if it's safe?**
+
+Because nobody can honestly promise that from the outside, and a wrong "safe" could cost someone their savings. We tell you how much evidence there is, from "Regulator warning" to "Not enough to go on", and show exactly why. It isn't a final ruling, and anyone named can appeal.
+
 ### Law and regulators
 
 **How do you handle data protection?**

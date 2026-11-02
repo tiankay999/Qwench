@@ -2,7 +2,8 @@ import { Suspense } from "react";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { cacheLife } from "next/cache";
-import { AlertCircle, ArrowLeft } from "lucide-react";
+import { connection } from "next/server";
+import { AlertCircle } from "lucide-react";
 import { checkName, fromSlug, toSlug, type CheckResult } from "@/lib/qwench";
 import { FEATURED_CHECKS } from "@/lib/content";
 import { EvidenceReport } from "@/components/evidence/EvidenceReport";
@@ -35,12 +36,24 @@ export async function generateMetadata({
   };
 }
 
-/** Cached so a shared link doesn't run a fresh check for every visitor. */
-async function load(name: string): Promise<CheckResult | null> {
+/**
+ * Cached so a shared link doesn't run a fresh check for every visitor, and
+ * throwing on failure so an unreachable API is never the cached answer about a
+ * named company for the next hour.
+ */
+async function fetchCheck(name: string): Promise<CheckResult> {
   "use cache";
   cacheLife("hours");
+  return checkName(name);
+}
+
+async function load(name: string): Promise<CheckResult | null> {
+  // The page shell still prerenders; only the result waits for a request. The
+  // image is built with no backend, so prerendering this would publish
+  // "couldn't reach Qwench" as the answer about a real company.
+  await connection();
   try {
-    return await checkName(name);
+    return await fetchCheck(name);
   } catch {
     return null;
   }

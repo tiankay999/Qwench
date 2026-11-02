@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { cacheLife } from "next/cache";
+import { connection } from "next/server";
 import { CalendarDays } from "lucide-react";
 import { checkName, toSlug, type CheckResult } from "@/lib/qwench";
 import { FEATURED_CHECKS } from "@/lib/content";
@@ -16,18 +17,37 @@ import { StateBadge } from "@/components/evidence/StateBadge";
  * There is no "trending" here. A count of how often something is checked is
  * not evidence about it, and the prototype's "247 reports" numbers were made up.
  */
-async function load(): Promise<{ name: string; result: CheckResult }[]> {
+type Checked = { name: string; result: CheckResult };
+
+/**
+ * Throws when nothing could be checked, so an empty strip is never what gets
+ * cached for an hour — which is what a build with no backend would produce.
+ */
+async function fetchChecks(): Promise<Checked[]> {
   "use cache";
   cacheLife("hours");
 
   const settled = await Promise.allSettled(
-    FEATURED_CHECKS.map(async (name) => ({ name, result: await checkName(name) })),
+    FEATURED_CHECKS.map(async (name): Promise<Checked> => ({ name, result: await checkName(name) })),
   );
 
-  return settled
-    .filter((s): s is PromiseFulfilledResult<{ name: string; result: CheckResult }> => s.status === "fulfilled")
-    .map((s) => s.value)
-    .filter(({ result }) => result.match);
+  const done = settled
+    .filter((s): s is PromiseFulfilledResult<Checked> => s.status === "fulfilled")
+    .map((s) => s.value);
+
+  if (!done.length) throw new Error("no featured check could be run");
+  return done.filter(({ result }) => result.match);
+}
+
+async function load(): Promise<Checked[]> {
+  // Waits for a real request, so the deployed page isn't built from whatever
+  // the API said (or didn't say) at image-build time. See StatsRow.
+  await connection();
+  try {
+    return await fetchChecks();
+  } catch {
+    return [];
+  }
 }
 
 export async function FeaturedChecks() {

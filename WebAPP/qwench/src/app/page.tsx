@@ -3,6 +3,7 @@ import { Hero } from "@/components/home/Hero";
 import { StatsRow } from "@/components/home/StatsRow";
 import { FeaturedChecks } from "@/components/home/FeaturedChecks";
 import { HowItWorks } from "@/components/home/HowItWorks";
+import { ChannelsCTA } from "@/components/layout/ChannelsCTA";
 
 export default function HomePage() {
   return (
@@ -15,6 +16,11 @@ export default function HomePage() {
         <FeaturedChecks />
       </Suspense>
       <HowItWorks />
+      <div className="px-4 pb-20">
+        <div className="mx-auto max-w-4xl">
+          <ChannelsCTA />
+        </div>
+      </div>
     </>
   );
 }

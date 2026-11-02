@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* next-themes is set to attribute="class" with enableSystem={false}, so the
+   toggle is the only thing that decides the theme. Point Tailwind's dark:
+   variant at that class too, or dark: would follow the OS instead and
+   disagree with the tokens below. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
   --color-primary: var(--primary);
   --color-accent: var(--accent);

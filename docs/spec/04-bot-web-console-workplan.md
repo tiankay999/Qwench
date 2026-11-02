@@ -12,7 +12,7 @@ styles. Dre owns the backend, and the API format is in `docs/API.md` once writte
 | 3 | WhatsApp | Use fixed reply templates: status, sources and dates, return check, warning signs, questions to ask, footer | Every reply follows the same order |
 | 4 | WhatsApp | Move every route in `WhatsappBot/src/api.js` to `/v1` | No bot call uses `/api` |
 | 5 | WhatsApp | Accept forwarded messages and TikTok and Telegram links | Names, numbers and links are pulled out |
-| 6 | Web app | Build the home page: paste box, then the same report as the bot | The Next.js starter page is gone and YepBit shows its SEC warning with date and link |
+| 6 | Web app | ~~Build the home page: paste box, then the same report as the bot~~ **Done** | The Next.js starter page is gone and YepBit shows its SEC warning with date and link. `/`, `/search`, `/report/[slug]`, `/report-scheme`, `/appeal`, `/about`, `/for-business`, `/community`, `/blog` and `/dashboard` all run on `/v1/public`, in the bot's reply order |
 | 7 | Console | Build the lookup screen | It shows the state, tier, reason, sources and allowed use |
 | 8 | Console | Build the payment check: a real API call beside a mock warning screen | A number found in a notice returns tier 1 with its source |
 | 9 | Console | Build the daily feed screen | The table loads from the feed |

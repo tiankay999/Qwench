@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { cacheLife } from "next/cache";
+import { connection } from "next/server";
 import { Ban, Database, Phone, ShieldCheck } from "lucide-react";
 import { about, HOTLINES } from "@/lib/qwench";
 import { WHAT_WE_DO_NOT_DO } from "@/lib/content";
@@ -12,11 +13,19 @@ export const metadata: Metadata = {
     "What Qwench checks, which official sources it uses, and what it deliberately does not do.",
 };
 
-async function load() {
+/** Throws on failure, so a failed call is never cached in place of the table. */
+async function fetchAbout() {
   "use cache";
   cacheLife("hours");
+  return about();
+}
+
+async function load() {
+  // Not at image-build time, where no backend is reachable and the error
+  // branch would be baked into the deployed page for an hour.
+  await connection();
   try {
-    return await about();
+    return await fetchAbout();
   } catch {
     return null;
   }

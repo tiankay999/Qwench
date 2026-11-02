@@ -34,7 +34,7 @@ router.post("/login", loginLimiter, loginRules, async (req, res, next) => {
     const org = user && matches && user.isActive ? await Organization.findById(user.orgId).lean() : null;
 
     if (!org || org.status === "suspended") {
-      return sendError(res, 401, "invalid_credentials", "That email or password isn't right");
+      return sendError(res, 401, "invalid_credentials");
     }
 
     startSession(res, user);

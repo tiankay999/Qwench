@@ -1,4 +1,5 @@
 import { cacheLife } from "next/cache";
+import { connection } from "next/server";
 import { CalendarDays, FileText, Landmark } from "lucide-react";
 import { about } from "@/lib/qwench";
 import { Card } from "@/components/ui/Card";
@@ -12,11 +13,21 @@ import { Card } from "@/components/ui/Card";
  * from, and when the data was last refreshed. No count of checks is shown,
  * because check_events holds no sender and there is no public endpoint for it.
  */
-async function load() {
+
+/** Throws on failure, so a failed call is never what gets cached for an hour. */
+async function fetchAbout() {
   "use cache";
   cacheLife("hours");
+  return about();
+}
+
+async function load() {
+  // The image is built with no backend reachable, so without this the "couldn't
+  // reach" branch would be prerendered into the deployed page and served for an
+  // hour. Waiting for a real request means the first visitor fills the cache.
+  await connection();
   try {
-    return await about();
+    return await fetchAbout();
   } catch {
     return null;
   }

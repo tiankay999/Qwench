@@ -15,7 +15,7 @@ export function DidYouMean({
 }: {
   original: string;
   suggested: string;
-  onPick: (name: string, exact: boolean) => void;
+  onPick: (name: string) => void;
 }) {
   return (
     <div className="rounded-xl border border-border bg-surface p-6">
@@ -35,14 +35,14 @@ export function DidYouMean({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <button
-          onClick={() => onPick(suggested, false)}
+          onClick={() => onPick(suggested)}
           className="rounded-lg border border-border bg-surface-alt px-4 py-3 text-left hover:border-accent transition-colors cursor-pointer min-h-[44px]"
         >
           <span className="block text-xs text-text-muted mb-0.5">Check the registered one</span>
           <span className="block font-semibold text-text-primary">{suggested}</span>
         </button>
         <button
-          onClick={() => onPick(original, true)}
+          onClick={() => onPick(original)}
           className="rounded-lg border border-border bg-surface-alt px-4 py-3 text-left hover:border-accent transition-colors cursor-pointer min-h-[44px]"
         >
           <span className="block text-xs text-text-muted mb-0.5">Check it as I typed it</span>

@@ -58,6 +58,14 @@ services:
     build:
       context: ./WebAPP/qwench
       dockerfile: Dockerfile
+      # All three are read at build time, not run time. QWENCH_API_URL is baked
+      # into the rewrite destinations by next build, and NEXT_PUBLIC_* is inlined
+      # into the browser bundle. Setting them only in `environment:` below has no
+      # effect, so they are passed both ways and must match.
+      args:
+        QWENCH_API_URL: http://backend:4000
+        NEXT_PUBLIC_WHATSAPP_NUMBER: ${NEXT_PUBLIC_WHATSAPP_NUMBER:-}
+        NEXT_PUBLIC_TELEGRAM_USERNAME: ${NEXT_PUBLIC_TELEGRAM_USERNAME:-}
     container_name: qwench-webapp
     restart: unless-stopped
     ports:

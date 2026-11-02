@@ -328,6 +328,20 @@ export async function evaluate(input) {
     }
   }
 
+  // A record nobody has reviewed must never reach a caller. An entity with only
+  // pending records reads exactly like one Qwench has never heard of.
+  if (matchedEntity) {
+    const [hasActive, hasPending] = await Promise.all([
+      Record.exists({ entityId: matchedEntity._id, status: "active" }),
+      Record.exists({ entityId: matchedEntity._id, status: "pending" }),
+    ]);
+    if (!hasActive && hasPending) {
+      matchedEntity = null;
+      matchedIdentifier = null;
+      result.warning_signs = [];
+    }
+  }
+
   /* --- 3c. Nothing matched ---------------------------------------- */
   if (!matchedEntity) {
     const [reportCount, signal] = await Promise.all([
@@ -356,15 +370,6 @@ export async function evaluate(input) {
   result.entity_slug = matchedEntity.slug;
 
   const records = await Record.find({ entityId: matchedEntity._id, status: "active" }).populate("sourceId").lean();
-
-  // Records waiting on four-eyes review are deliberately not used for a
-  // verdict, but their existence has to be reported. Otherwise an entity we
-  // demonstrably hold a notice for reads as "nothing known", and Qwench ends
-  // up asking for SEC Ghana's own licence number.
-  result.pending_records = await Record.countDocuments({
-    entityId: matchedEntity._id,
-    status: "pending",
-  });
 
   result.state = determineState(records);
   result.sources = records
@@ -473,12 +478,7 @@ export async function evaluate(input) {
   /* --- 8. Build the reply (templates only) ------------------------- */
   result.suggested_action = determineSuggestedAction(result.tier, newPayee, amountGhs);
   result.allowed_use = determineAllowedUse(result.state, result.tier);
-  // Questions that assume we know nothing are wrong when a record is simply
-  // awaiting sign-off, so they are withheld in that case.
-  result.questions_to_ask =
-    result.state === "no_record" && result.pending_records > 0
-      ? []
-      : buildQuestionsToAsk(result.state, result.warning_signs.length);
+  result.questions_to_ask = buildQuestionsToAsk(result.state, result.warning_signs.length);
 
   /* --- 9. Logging is the route's job (logCheck) -------------------- */
   return result;

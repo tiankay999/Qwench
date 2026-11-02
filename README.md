@@ -146,20 +146,16 @@ Only a tier-1 (regulator-grade) finding is `allowed_use: "customer_warning"`. Ev
 else is `internal_only`: telling a customer their payee is suspect on thinner evidence
 is an accusation Qwench cannot stand behind.
 
-**Records must be reviewed before they match.** `/v1/check` reads only
-`status: "active"` records, and the migration leaves every imported record
-`under_review` by design. Until a second person signs them off, a check resolves the
-entity but reports `no_record`. Sign off with:
+**Records must be reviewed before they match.** A check reads only `status: "active"` records, and an entity with only pending records reads exactly like one Qwench has never heard of.
 
 ```bash
-node src/scripts/reviewRecords.js --reviewer "you@example.com" --dry-run
-node src/scripts/reviewRecords.js --reviewer "you@example.com"
+pnpm migrate:legacy                 # the old list, as pending records for the data lead
+pnpm import:reviewed --dry-run      # check reviewed files in src/data/reviewed/
+pnpm import:reviewed                # load them
+ALLOW_DEMO_SEED=true pnpm seed:demo # labelled demo data, on a demo database only
 ```
 
-That is a bulk approval — mechanically four-eyes clean (the reviewer must differ from
-the capturer, and every activation is audited), but one person approving a whole
-register in one command is a governance shortcut. Review individually for anything
-beyond bootstrapping an import.
+An active record needs a source, an exact quote and a second reviewer.
 
 > **The old `/api/*` routes break the `/v1` rules.** They return risk scores, verdicts
 > and recommendation text, which `/v1` forbids. They are still mounted because the

@@ -1,6 +1,6 @@
 // DEPRECATED — replaced by PublicReport in the new data model.
 // See src/models/PublicReport.js. Still backing the live report flow until
-// the cutover; migrate with src/scripts/migrateOldData.js.
+// the cutover. Its rows never move to /v1: public reports start fresh.
 
 import mongoose from "mongoose";
 

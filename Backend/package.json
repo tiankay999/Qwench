@@ -7,6 +7,9 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "seed": "node src/scripts/seed.js",
+    "import:reviewed": "node src/scripts/import-reviewed.js",
+    "migrate:legacy": "node src/scripts/migrate-legacy.js",
+    "seed:demo": "node src/scripts/seed-demo.js",
     "test": "node --test \"test/**/*.test.js\""
   },
   "keywords": [],

@@ -1,0 +1,37 @@
+[
+  {
+    "name": "Fixture Notice Scheme",
+    "kind": "platform",
+    "aliases": ["Fixture Notice"],
+    "allowFuzzy": false,
+    "recordType": "warning",
+    "jurisdiction": "GH",
+    "licenseType": "",
+    "identifiers": [
+      { "type": "domain", "raw": "https://www.fixture-notice.test/join" },
+      { "type": "momo_number", "raw": "024 000 0000" }
+    ],
+    "source": { "publisher": "Fixture publisher", "title": "Fixture notice", "url": "https://example.test/notice", "publishedOn": "2026-07-01" },
+    "quote": "Fixture quote, not a regulator's words.",
+    "effectiveOn": "2026-07-01",
+    "endsOn": null,
+    "capturedBy": "fixture capturer",
+    "reviewedBy": "fixture reviewer"
+  },
+  {
+    "name": "Darazz",
+    "kind": "platform",
+    "aliases": [],
+    "allowFuzzy": false,
+    "recordType": "warning",
+    "jurisdiction": "GH",
+    "licenseType": "",
+    "identifiers": [],
+    "source": { "publisher": "Fixture publisher", "title": "Fixture notice", "url": "https://example.test/notice", "publishedOn": "2026-07-01" },
+    "quote": "Fixture quote, to prove Daraz does not match Darazz.",
+    "effectiveOn": "2026-07-01",
+    "endsOn": null,
+    "capturedBy": "fixture capturer",
+    "reviewedBy": "fixture reviewer"
+  }
+]

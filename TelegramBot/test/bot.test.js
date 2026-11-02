@@ -51,6 +51,10 @@ test("demo data says so first", () => {
   assert.ok(formatReply(reply({ is_demo: true })).startsWith("DEMO DATA"));
 });
 
+test("a close name is offered, never shown as a match", () => {
+  assert.match(formatReply(reply({ did_you_mean: { suggested_entity: "Fixture Scheme" } })), /Did you mean Fixture Scheme\? Send that name/);
+});
+
 test("empty sections are left out", () => {
   const text = formatReply(reply({ report: { ...REPORT, sources: [], also_checked: [], return_check: null, warning_signs: [], ai_warning_signs: [], link_facts: [], questions_to_ask: [], notes: [] } }));
   for (const heading of ["Sources", "Also checked", "Stated return", "Warning signs", "Spotted by AI", "About the link", "Questions"]) assert.ok(!text.includes(heading), heading);

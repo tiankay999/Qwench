@@ -5,6 +5,8 @@
 Dre styles the screens afterwards, so build plain, working screens with simple shared
 styles. Dre owns the backend, and the API format is in `docs/API.md` once written.
 
+**Status, 2026-11-02:** tasks 1 to 5 are built on `whatsapp-v1`, but not yet tried on WhatsApp itself. The console screens (tasks 7 to 9) work. Task 6 isn't done: the public web app still runs on mock data.
+
 | # | Area | Task | Done when |
 |---|---|---|---|
 | 1 | WhatsApp | Remove the risk score, recommendation, CoinGecko data, public trending and report counts | The Vaulta reply shows no score or red flags |

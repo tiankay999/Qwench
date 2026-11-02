@@ -158,7 +158,6 @@ async function handleMessage(sock, msg) {
 
   const isGroup = jid.endsWith("@g.us");
   if (isGroup && !ALLOW_GROUPS) {
-    console.log(`[wa] ignoring group message from ${jid} (set ALLOW_GROUPS=true to enable)`);
     return;
   }
 
@@ -167,25 +166,18 @@ async function handleMessage(sock, msg) {
   if (!text && !media) return;
 
   const targetJid = isSelfChat && myPhone ? `${myPhone}@s.whatsapp.net` : jid;
-  const phone = senderPhone || myPhone || "user";
-  console.log(
-    `[wa] 📩 from +${phone}${isSelfChat ? " (self-test)" : ""}: ${text || "(no caption)"}` +
-      `${media ? ` [📸 ${media.mimeType}, ${(media.bytes / 1024).toFixed(0)}KB]` : ""}`
-  );
-
   const send = async (body) => {
     const sent = await sock.sendMessage(targetJid, { text: body });
     if (sent?.key?.id) {
       sentMessageIds.add(sent.key.id);
       setTimeout(() => sentMessageIds.delete(sent.key.id), 60000);
     }
-    console.log(`[wa] 📤 to +${phone}: ${body.split("\n")[0].slice(0, 60)}...`);
   };
 
   // Show the typing bubble so the wait for the API feels intentional.
   await sock.sendPresenceUpdate("composing", targetJid).catch(() => {});
 
-  await routeMessage({ jid: targetJid, phone, send }, text, media);
+  await routeMessage({ jid: targetJid, send }, text, media);
 
   await sock.sendPresenceUpdate("paused", targetJid).catch(() => {});
 }

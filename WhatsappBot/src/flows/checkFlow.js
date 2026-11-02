@@ -1,61 +1,36 @@
-import { checkInvestmentWithContext } from "../api.js";
-import { API_ERROR, CHECKING, formatAuthorityCard, formatEvidenceSummary, formatRiskReport } from "../messages.js";
-import { resetSession } from "../sessions.js";
+import { checkMessage } from "../api.js";
+import { API_ERROR, CHECKING, DAILY_LIMIT, formatReply } from "../messages.js";
+import { STATE, resetSession, setState } from "../sessions.js";
 
-/** Pull http(s) links out of a message. */
-export function extractUrls(text) {
-  return String(text || "").match(/https?:\/\/[^\s<>"')]+/gi) || [];
-}
+const MAX_TEXT = 5000;
 
-/**
- * Run a risk check and send the formatted report back.
- * This is the main feature of the bot.
- *
- * opts:
- *   spoofingDetection       - name-verification payload to pass to the analyzer
- *   injectedFlags           - flags established before the analysis ran
- *   evidence                - bundle of user-supplied screenshots / links / text
- *   suppressEvidencePrompt  - do not ask for evidence again (we already did)
- */
-export async function runCheck(ctx, query, opts = {}) {
-  const { send, session } = ctx;
-  const { spoofingDetection, injectedFlags, evidence, suppressEvidencePrompt, legitMatch, skipConfirmation } = opts;
+/** Send one message or screenshot to the API, and send back its report. */
+export async function runCheck(ctx, text, media = null) {
+  const { send, session, jid } = ctx;
 
   resetSession(session);
-  await send(CHECKING(query));
+  await send(CHECKING);
 
-  let result;
+  const input = {};
+  if (text) input.text = text.slice(0, MAX_TEXT);
+  if (media) {
+    input.image_base64 = media.base64;
+    input.mime_type = media.mimeType;
+  }
+
+  let reply;
   try {
-    result = await checkInvestmentWithContext(query, { spoofingDetection, injectedFlags, evidence, skipConfirmation });
+    reply = await checkMessage(input, `whatsapp:${jid}`);
   } catch (err) {
-    console.error(`[check] failed for "${query}":`, err.response?.data?.error || err.message);
-    return send(API_ERROR);
+    // The status only: nothing about the message or sender goes in the logs.
+    console.error(`[check] failed: ${err.response?.status || err.code || "no response"}`);
+    return send(err.response?.status === 429 ? DAILY_LIMIT : API_ERROR);
   }
 
-  console.log(`[check] ${query} -> ${result.state} tier=${result.tier ?? "none"} (${(result.reason_codes || []).join(",") || "no codes"})`);
-
-  // Regulators and government bodies are not investments, so they get an
-  // information card instead of a risk verdict.
-  if (result.state === "registered") {
-    console.log(`[check] ${query} is an official body -- sending the authority card`);
-    return send(formatAuthorityCard(result));
+  if (reply.did_you_mean?.suggested_entity) {
+    session.draft = { suggestion: reply.did_you_mean.suggested_entity };
+    setState(session, STATE.AWAITING_SUGGESTION_REPLY);
   }
 
-  // No record at all. Rather than leave it at "I don't know", ask for
-  // screenshots or a link so there is something to go on.
-  const nothingKnown = !result.match && !result.tier;
-  if (nothingKnown && !suppressEvidencePrompt) {
-    const { startEvidenceCollection } = await import("./evidenceFlow.js");
-    return startEvidenceCollection(ctx, result.entity || query);
-  }
-
-  const header = evidence?.evidenceCount
-    ? formatEvidenceSummary({
-        images: evidence.imageAnalyses?.length || 0,
-        urls: evidence.urlAnalyses?.length || 0,
-        texts: evidence.textEvidence?.length || 0,
-      })
-    : "";
-
-  await send(formatRiskReport(result, { evidenceSummary: header, legitMatch }));
+  await send(formatReply(reply));
 }

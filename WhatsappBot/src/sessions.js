@@ -8,18 +8,14 @@ export const STATE = {
   IDLE: "IDLE",
   AWAITING_CHECK_QUERY: "AWAITING_CHECK_QUERY",
   AWAITING_SCHEME_NAME: "AWAITING_SCHEME_NAME",
-  AWAITING_SCHEME_SOURCE: "AWAITING_SCHEME_SOURCE",
-  // Name verification found a look-alike; waiting for the user to pick 1 or 2.
-  AWAITING_SPOOF_CHOICE: "AWAITING_SPOOF_CHOICE",
-  // Nothing known about the entity; waiting for screenshots, links or text.
-  AWAITING_EVIDENCE: "AWAITING_EVIDENCE",
+  // The API suggested a close name; a "yes" checks that name.
+  AWAITING_SUGGESTION_REPLY: "AWAITING_SUGGESTION_REPLY",
 };
 
 // Short-lived flows expire faster than the session itself, so a stale prompt
 // never swallows a fresh question.
 const STATE_TTL_MS = {
-  [STATE.AWAITING_SPOOF_CHOICE]: 5 * 60 * 1000,
-  [STATE.AWAITING_EVIDENCE]: 10 * 60 * 1000,
+  [STATE.AWAITING_SUGGESTION_REPLY]: 5 * 60 * 1000,
 };
 
 const sessions = new Map();
@@ -33,8 +29,6 @@ export function getSession(jid) {
     return existing;
   }
 
-  if (existing) console.log(`[session] ${jid} expired, starting fresh`);
-
   const session = {
     jid,
     state: STATE.IDLE,
@@ -47,7 +41,6 @@ export function getSession(jid) {
 }
 
 export function setState(session, state) {
-  console.log(`[session] ${session.jid}: ${session.state} -> ${state}`);
   session.state = state;
   session.stateSince = Date.now();
 }
@@ -62,7 +55,6 @@ export function stateExpired(session) {
   if (!ttl || !session.stateSince) return false;
 
   if (Date.now() - session.stateSince > ttl) {
-    console.log(`[session] ${session.jid}: ${session.state} expired after ${Math.round(ttl / 60000)}min`);
     return true;
   }
   return false;

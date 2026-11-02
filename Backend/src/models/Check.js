@@ -35,8 +35,7 @@ const checkSchema = new mongoose.Schema(
 
     outcome: { type: String, enum: CHECK_OUTCOMES, default: "none" },
     // _id of the row this came from in the old `checks` collection, so the
-    // migration can re-run without duplicating. Absent on live checks: a stored
-    // null would collide in the unique sparse index below.
+    // migration can re-run without duplicating. Absent on live checks.
     legacyId: { type: mongoose.Schema.Types.ObjectId },
     isDemo: { type: Boolean, default: false },
   }
@@ -58,6 +57,12 @@ checkSchema.pre("validate", function stripRawInput() {
 checkSchema.index({ hourBucket: 1 });
 checkSchema.index({ identifierHashes: 1 });
 checkSchema.index({ matchedEntityIds: 1 });
-checkSchema.index({ legacyId: 1 }, { unique: true, sparse: true });
+// Partial, not sparse: rows written before the default was removed can hold an
+// explicit null, which a sparse index would still collide on. Only real ObjectIds
+// are indexed here.
+checkSchema.index(
+  { legacyId: 1 },
+  { unique: true, partialFilterExpression: { legacyId: { $type: "objectId" } } }
+);
 
 export default mongoose.model("Check", checkSchema, "check_events");

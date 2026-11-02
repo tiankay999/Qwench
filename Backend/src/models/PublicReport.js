@@ -30,7 +30,7 @@ const publicReportSchema = new mongoose.Schema(
     reviewStatus: { type: String, enum: PUBLIC_REPORT_STATUSES, default: "pending" },
     // _id of the row this came from in the old `reports` collection. Gives the
     // migration a stable key so re-running updates instead of duplicating. Absent
-    // on new reports: a stored null would collide in the unique sparse index below.
+    // on new reports.
     legacyId: { type: mongoose.Schema.Types.ObjectId },
     // Deleted by the TTL index below. Null once confirmed, which keeps the report.
     expiresAt: { type: Date, default: () => new Date(Date.now() + UNCONFIRMED_REPORT_DAYS * 86_400_000) },
@@ -55,6 +55,12 @@ publicReportSchema.index({ reviewStatus: 1 });
 publicReportSchema.index({ schemeName: "text" });
 publicReportSchema.index({ "identifiers.valueHash": 1 });
 publicReportSchema.index({ createdAt: -1 });
-publicReportSchema.index({ legacyId: 1 }, { unique: true, sparse: true });
+// Partial, not sparse: rows written before the default was removed can hold an
+// explicit null, which a sparse index would still collide on. Only real ObjectIds
+// are indexed here.
+publicReportSchema.index(
+  { legacyId: 1 },
+  { unique: true, partialFilterExpression: { legacyId: { $type: "objectId" } } }
+);
 
 export default mongoose.model("PublicReport", publicReportSchema);

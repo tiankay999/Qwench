@@ -95,6 +95,8 @@ export async function handleSpoofChoice(ctx, text) {
       injectedFlags: draft.injectedFlags || [],
       // Even when they check the look-alike, end by pointing at the real one.
       legitMatch,
+      // They have already chosen; do not ask the same question again.
+      skipConfirmation: true,
     });
   }
 

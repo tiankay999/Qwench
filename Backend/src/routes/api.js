@@ -9,8 +9,9 @@ import { aiStatus } from "../services/aiAnalyzer.js";
 import { getTrendingCoins } from "../services/coingecko.js";
 import { analyzeImage } from "../services/imageAnalyzer.js";
 import { verifyName } from "../services/nameVerifier.js";
-import { runRiskCheck } from "../services/riskEngine.js";
+import { evaluate } from "../services/evidenceEngine.js";
 import { slugify } from "../services/secData.js";
+import { logCheck } from "../utils/logCheck.js";
 import { analyzeUrl } from "../services/urlAnalyzer.js";
 
 const router = Router();
@@ -23,14 +24,21 @@ function hashPhone(phone) {
 }
 
 /* POST /api/check -- run a risk analysis on a company / token / link */
+/**
+ * POST /api/check — the bot's endpoint, now served by the evidence engine.
+ *
+ * Returns a legal state, an evidence tier, reason codes and sources. There is
+ * no score, verdict, colour or recommendation here any more: those came from
+ * a model's judgement, and judgement is not what this system is for.
+ */
 router.post("/check", async (req, res) => {
   const {
     query,
     channel = "whatsapp",
-    additionalContext = "",
-    spoofingDetection = null,
-    injectedFlags = [],
-    evidence = null,
+    amount_ghs: amountGhs,
+    new_payee: newPayee = false,
+    // The bot sets this once it has already asked which name was meant.
+    skipConfirmation = false,
   } = req.body || {};
 
   if (!query || !String(query).trim()) {
@@ -38,35 +46,47 @@ router.post("/check", async (req, res) => {
   }
 
   try {
-    const result = await runRiskCheck(query, {
-      additionalContext,
-      spoofingDetection,
-      injectedFlags: Array.isArray(injectedFlags) ? injectedFlags : [],
-      userEvidence: evidence,
+    const type = inferType(query);
+    const result = await evaluate({
+      recipient: query,
+      type,
+      channel,
+      amount_ghs: amountGhs,
+      new_payee: newPayee,
+      skip_confirmation: skipConfirmation,
     });
 
-    // Log the check for analytics / trending -- never blocks the response.
-    LegacyCheck.create({
-      query: String(query).trim(),
-      querySlug: result.slug,
-      channel,
-      result: {
-        riskScore: result.riskScore,
-        riskLevel: result.riskLevel,
-        riskVerdict: result.riskVerdict,
-        status: result.status,
-        category: result.category,
-        redFlags: result.redFlags,
-        analyzedBy: result.analyzedBy,
-      },
-    }).catch((err) => console.warn(`[api] could not log check: ${err.message}`));
+    await logCheck({
+      channel: ["whatsapp", "telegram", "web", "api"].includes(channel) ? channel : "whatsapp",
+      inputType: type === "momo_number" ? "number" : type === "url" ? "url" : type,
+      identifierHashes: [result.value_hash],
+      matchedEntityIds: result.entity_id ? [result.entity_id] : [],
+      state: result.state,
+      tier: result.tier,
+      flags: result.reason_codes,
+      outcome: result.suggested_action,
+    });
 
     res.json({ ok: true, data: result });
   } catch (err) {
     console.error("[api] /check failed:", err);
-    res.status(500).json({ ok: false, error: "Risk check failed" });
+    res.status(500).json({ ok: false, error: "Check failed" });
   }
 });
+
+/** Work out what the user sent us, so the bot does not have to say. */
+function inferType(query) {
+  const q = String(query).trim();
+  if (/^0x[a-fA-F0-9]{40}$/.test(q)) return "wallet";
+  if (/^https?:\/\//i.test(q)) return "url";
+
+  // Any number of labels before the TLD, so multi-label domains such as
+  // sec.gov.gh and gse.com.gh are recognised rather than read as a name.
+  if (/^[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}(\/\S*)?$/i.test(q) && !/\s/.test(q)) return "url";
+
+  if (/^\+?[\d\s\-()]{9,15}$/.test(q)) return "momo_number";
+  return "name";
+}
 
 /* POST /api/verify-name -- anti-spoofing check, runs BEFORE /api/check */
 router.post("/verify-name", async (req, res) => {

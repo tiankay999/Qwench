@@ -293,7 +293,61 @@ Up to 5 items; `done` produces the final report, `skip` keeps the original verdi
 
 ---
 
-## The AI analyzer
+## The evidence engine
+
+`src/services/evidenceEngine.js` is the brain. **Rules decide; AI only extracts.**
+
+The 9-step flow: extract → normalise → match (exact identifier first, then name,
+then a tight fuzzy pass) → legal state → merchant registry → evidence tier → context →
+reply from fixed templates → log.
+
+Nothing it returns is a judgement. There is no score, no verdict, no colour and no
+advice anywhere in the output — only a legal state, an evidence tier, reason codes, and
+the sources behind them. If a claim is not backed by a Record citing a Source, it does
+not appear.
+
+**Evidence tiers** — how well evidenced, not how bad it looks:
+
+| Tier | Means | Action |
+| --- | --- | --- |
+| 1 | A regulator published it | `warn` — the only tier shown to a customer |
+| 2 | A member institution confirmed it, or a reviewed impersonation | `warn` / `warn_or_confirmation_call` |
+| 3 | Three or more confirmed independent reports | `internal_review` |
+| 4 | Rising check volume only | `watch` |
+| null | Nothing meets a bar | `none` |
+
+Volume alone never becomes evidence: twenty unreviewed reports about the same name
+produce no tier and change nothing publicly. They open a review.
+
+**Return promises** are measured against SEC Ghana's published thresholds (Notice
+SEC/PN/002/07/2025): ≥6% monthly is a fraud indicator, rising to "maximum" at ≥70%.
+"15% daily" is reported as 450% monthly against that threshold — a fact, not a verdict.
+
+### AI is extraction only
+
+`src/services/aiExtractor.js` reads screenshots and pages and reports what is literally
+there: text, names, numbers, domains, return claims. It is never asked whether something
+is a scam, how risky it is, or what to do.
+
+Its output is treated as untrusted and is discarded when it contains a banned word
+(`safe`, `scam`, `legitimate`, `recommend`, `trust`…) or states something absent from the
+source text. Every extracted list is grounded against the material actually read.
+
+### What was removed
+
+`riskScore`, `riskVerdict` (LOW/MEDIUM/HIGH/CRITICAL), `riskColor`, `recommendation`,
+`communityBoost` and `scoreBreakdown` are gone from the product. `riskEngine.js` and
+`checkService.js` are deprecated and nothing routes through them; `aiAnalyzer.js` keeps
+only its provider plumbing, which the extractors use. The WhatsApp reply was rebuilt to
+match — it now states the legal position, the evidence behind it, who published it, and
+what to go and ask.
+
+---
+
+## The AI analyzer (retired — kept for reference)
+
+> The scoring system described below has been REPLACED by the evidence engine above.
+> It is documented here only so the change is traceable. Nothing routes through it.
 
 The AI model is the brain of the risk analysis. The backend gathers raw data from every
 source, packages it into a structured prompt, and the model returns the score, verdict,

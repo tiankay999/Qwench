@@ -1,3 +1,6 @@
+// DEPRECATED — superseded by src/services/evidenceEngine.js, which implements
+// the full 9-step evidence flow. The /v1 routes no longer import this.
+
 // QWENCH API RULES — NEVER return any of these in any response:
 // - Risk scores or risk verdicts
 // - Risk colors

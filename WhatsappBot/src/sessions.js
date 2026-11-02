@@ -1,3 +1,9 @@
+// DEPRECATED — replaced by the evidence-based bot in src/core/.
+//
+// The old session store. See src/core/sessions.js.
+// Nothing imports this any more. WhatsApp and Telegram both go through
+// src/core/handler.js, which renders the report the API already builds.
+
 /**
  * Per-user conversation state, kept in memory.
  * Good enough for a hackathon demo -- restarting the bot just resets everyone

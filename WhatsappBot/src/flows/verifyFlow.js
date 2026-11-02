@@ -1,3 +1,9 @@
+// DEPRECATED — replaced by the evidence-based bot in src/core/.
+//
+// Superseded by the did-you-mean flow in src/core/handler.js.
+// Nothing imports this any more. WhatsApp and Telegram both go through
+// src/core/handler.js, which renders the report the API already builds.
+
 import { verifyName } from "../api.js";
 import {
   SPOOF_INVALID_CHOICE,

@@ -2,7 +2,8 @@ import "dotenv/config";
 import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
-import { pingBackend } from "./api.js";
+import { ping } from "./core/qwench.js";
+import { startTelegramBot } from "./telegram.js";
 import { startWhatsApp } from "./whatsapp.js";
 
 const AUTH_DIR = process.env.AUTH_DIR || "./auth";
@@ -68,7 +69,10 @@ process.on("unhandledRejection", (err) => {
 });
 
 // Not fatal if the API is down -- the bot still connects and will retry per message.
-await pingBackend();
+await ping();
+
+// Telegram is optional: without a token the WhatsApp channel still runs.
+startTelegramBot();
 
 startWhatsApp().catch((err) => {
   console.error("[bot] fatal startup error:", err);

@@ -1,3 +1,9 @@
+// DEPRECATED — replaced by the evidence-based bot in src/core/.
+//
+// Superseded by src/core/handler.js.
+// Nothing imports this any more. WhatsApp and Telegram both go through
+// src/core/handler.js, which renders the report the API already builds.
+
 import { checkInvestmentWithContext } from "../api.js";
 import { API_ERROR, CHECKING, formatAuthorityCard, formatEvidenceSummary, formatRiskReport } from "../messages.js";
 import { resetSession } from "../sessions.js";

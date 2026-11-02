@@ -1,3 +1,9 @@
+// DEPRECATED — replaced by the evidence-based bot in src/core/.
+//
+// Superseded: the API accepts images and links directly.
+// Nothing imports this any more. WhatsApp and Telegram both go through
+// src/core/handler.js, which renders the report the API already builds.
+
 import { analyzeImageEvidence, analyzeUrlEvidence } from "../api.js";
 import {
   API_ERROR,

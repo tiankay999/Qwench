@@ -167,6 +167,49 @@ An active record needs a source, an exact quote and a second reviewer.
 
 ---
 
+## Seeding the register
+
+The register lives in `src/data/register.js` — kept as data, separate from the script
+that loads it, so a compliance reader can review the entities without reading code.
+`src/scripts/seed.js` writes it into `sources`, `entities`, `identifiers`, `records`,
+`relations` and `organizations`.
+
+```bash
+pnpm seed                        # idempotent — upserts, never duplicates
+node src/scripts/seed.js --dry-run
+node src/scripts/seed.js --prune-legacy   # also drop superseded import rows
+```
+
+What it seeds: 6 sources, 23 entities from the SEC Ghana July 2025 notice, 17 from the
+SEC/EOCO joint warning, 7 historical schemes, 15 licensed operators, 11 sandbox
+participants, 7 regulators, 3 protected real companies, and 2 impersonation relations.
+
+**Records go in active, with a four-eyes trail** (`seed-admin` captured, `seed-reviewer`
+reviewed) — written through `document.save()` rather than a query update, so the
+model's four-eyes and quote rules actually run. A query update would bypass document
+middleware and let an unreviewed record go live unnoticed.
+
+**Protected names are exact-match only.** `Daraz`, `Hut 8` and `Dallmayr` the coffee
+house exist in the register purely as impersonation targets: no warning record, every
+identifier `allowFuzzy: false`. `Darazz` and the Dallmayr scheme are separate entities
+linked to them by an `impersonates` relation, so a near miss can never pull a real
+global brand into a Ghanaian notice.
+
+> **Two things the seed reports and you should act on.**
+>
+> **83 records carry a provenance line, not the notice's exact wording.** I don't have
+> the verbatim text of the notices, and inventing a sentence to attribute to SEC Ghana
+> would be manufacturing the evidence this system exists to verify. Each `quote` states
+> who listed the entity and in which document, and says the wording is not yet
+> transcribed. Replace them with the real text when you have the notices.
+>
+> **The sandbox window has lapsed.** `SANDBOX_WINDOW` runs 2025-06-01 → 2026-06-01,
+> which is in the past, so the engine treats those approvals as expired and
+> participants resolve to `no_record` rather than `sandbox`. Set the current period in
+> `register.js`, or confirm the sandbox has genuinely ended.
+
+---
+
 ## Data sources
 
 **1. SEC Ghana register** — `src/data/sec-ghana.json`, loaded into MongoDB on every

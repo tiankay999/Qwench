@@ -9,7 +9,7 @@ import makeWASocket, {
 import pino from "pino";
 import qrcode from "qrcode-terminal";
 
-import { routeMessage } from "./router.js";
+import { handleMessage as handleConversation } from "./core/handler.js";
 
 const AUTH_DIR = process.env.AUTH_DIR || "./auth";
 const ALLOW_GROUPS = process.env.ALLOW_GROUPS === "true";
@@ -164,7 +164,8 @@ async function handleMessage(sock, msg) {
 
   const text = extractText(msg.message);
   const media = await extractImage(sock, msg);
-  if (!text && !media) return;
+  const isVoice = hasVoiceNote(msg.message);
+  if (!text && !media && !isVoice) return;
 
   const targetJid = isSelfChat && myPhone ? `${myPhone}@s.whatsapp.net` : jid;
   const phone = senderPhone || myPhone || "user";
@@ -182,10 +183,27 @@ async function handleMessage(sock, msg) {
     console.log(`[wa] 📤 to +${phone}: ${body.split("\n")[0].slice(0, 60)}...`);
   };
 
-  // Show the typing bubble so the wait for the API feels intentional.
-  await sock.sendPresenceUpdate("composing", targetJid).catch(() => {});
+  const ctx = {
+    channel: "whatsapp",
+    // The JID is the sender reference. The API hashes it with a daily salt for
+    // the fair-use count and stores no sender on the check itself.
+    senderId: targetJid,
+    send,
+    sendTyping: () => sock.sendPresenceUpdate("composing", targetJid).catch(() => {}),
+  };
 
-  await routeMessage({ jid: targetJid, phone, send }, text, media);
+  await ctx.sendTyping();
+
+  if (media?.tooLarge) {
+    await send(`That image is ${(media.bytes / 1048576).toFixed(1)}MB, too large for me to read. Send a smaller screenshot, or type the name.`);
+  } else {
+    await handleConversation(ctx, {
+      text,
+      imageBase64: media?.base64,
+      mimeType: media?.mimeType,
+      isVoice,
+    });
+  }
 
   await sock.sendPresenceUpdate("paused", targetJid).catch(() => {});
 }
@@ -243,4 +261,10 @@ async function extractImage(sock, msg) {
     console.error(`[wa] image download failed: ${err.message}`);
     return null;
   }
+}
+
+/** WhatsApp voice notes arrive as audio with ptt set. */
+function hasVoiceNote(message) {
+  const m = message?.ephemeralMessage?.message || message?.viewOnceMessage?.message || message;
+  return Boolean(m?.audioMessage);
 }

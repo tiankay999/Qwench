@@ -1,3 +1,9 @@
+// DEPRECATED — replaced by the evidence-based bot in src/core/.
+//
+// The old command router, built around AI risk scores.
+// Nothing imports this any more. WhatsApp and Telegram both go through
+// src/core/handler.js, which renders the report the API already builds.
+
 import { getTrending } from "./api.js";
 import { API_ERROR, CHECK_PROMPT, HELP, WELCOME, formatTrending } from "./messages.js";
 import { runCheck } from "./flows/checkFlow.js";

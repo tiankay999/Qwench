@@ -1,3 +1,9 @@
+// DEPRECATED — replaced by the evidence-based bot in src/core/.
+//
+// The old reply templates, including riskScore/riskVerdict/recommendation.
+// Nothing imports this any more. WhatsApp and Telegram both go through
+// src/core/handler.js, which renders the report the API already builds.
+
 const WEB_APP_URL = (process.env.WEB_APP_URL || "http://localhost:5173").replace(/\/$/, "");
 
 export const WELCOME = `🛡️ Welcome to Qwench — your investment protection assistant.

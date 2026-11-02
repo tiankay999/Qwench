@@ -1,3 +1,9 @@
+// DEPRECATED — replaced by the evidence-based bot in src/core/.
+//
+// The old /api/* client. The bot now calls /v1/public/* via src/core/qwench.js.
+// Nothing imports this any more. WhatsApp and Telegram both go through
+// src/core/handler.js, which renders the report the API already builds.
+
 import axios from "axios";
 
 const BASE_URL = (process.env.API_BASE_URL || "http://localhost:4000").replace(/\/$/, "");

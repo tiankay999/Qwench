@@ -60,11 +60,12 @@ Stay in your own area. If you need something from another owner, list it for the
 - **Identifier hashes:** every identifier, including numbers, uses `HMAC_SECRET_KEY`. `PHONE_HASH_SALT` is for sender hashes.
 - **Readable numbers:** only a number published in a notice stays readable. Every other MoMo or bank number, and all partner data, is a hash only.
 - **Record statuses:** `pending`, `active`, `expired`, `withdrawn`.
-- **Code layout:** existing files in `src/routes/` and `src/services/` stay where they are. New engine code goes in `src/engine/`.
+- **Code layout:** existing files in `src/routes/` and `src/services/` stay where they are.
+- **Evidence engine:** `src/services/evidenceEngine.js` is the only engine. `checkService.js` is deprecated.
 
 ## Code already on `main`
 
-Commits `eb90ce8` and `690a7f7` added the data model and a first `/v1` API. Build on
+Commits `eb90ce8` and `690a7f7` added the data model and a first `/v1` API. Commits `d8427f6`, `0e54cb6` and `da92e5c` added the evidence engine, moved `/v1` and `/api/check` onto it, and added a web app on mock data. Build on
 them and don't redo them. This list came from reading the code, not running it, so
 confirm it first.
 
@@ -83,13 +84,15 @@ four-eyes check on records, required secrets at start-up, CORS limits, rate limi
 
 Backend progress and open bugs are in [03-backend-workplan.md](03-backend-workplan.md).
 
+**Coordination:** Dre's backend work is on `backend-v1` until it merges. Don't commit to `Backend/` without checking with Dre.
+
 **Gaps between the code and this spec:**
 
 | Gap | What the spec needs |
 |---|---|
 | `/v1/public/check` takes `recipient` and `type` only | Also `text`, `urls` and an image, because the bots and paste box send whole messages |
 | Public replies have no report | `state_sentence`, `sources`, `return_check`, `warning_signs`, `questions_to_ask`, `footer` |
-| Public replies have no `did_you_mean` | Move the `nameVerifier.js` logic in, so `/api/verify-name` can retire |
+| `did_you_mean` is in replies, but the bot still calls `/api/verify-name` | Move the bot over, so `/api/verify-name` can retire |
 | No `/v1/console` routes | Login, lookup, payment check, feed, keys, review queue |
 | README uses `internal_only` | Confirm against the `internal_review` and `allowed_use` table in the spec, then use one name |
 | No `is_demo` in responses | Add it wherever demo data can be returned |
@@ -97,4 +100,5 @@ Backend progress and open bugs are in [03-backend-workplan.md](03-backend-workpl
 | Feed may include partner data | Confirm that partner numbers never appear in it |
 | `isPublicHttpUrl` follows redirects unchecked | Fix as described in the backend workplan |
 | The bot still depends on `/api` | Move it, then retire `/api` with Dre's approval |
-| `/api` still returns scores and recommendations | Must not be shown or demoed |
+| `/api/check` no longer returns scores, but other `/api` routes and the old scoring code remain | Must not be shown or demoed |
+| The web app uses mock data, with risk levels and "scam" wording | Replace with API data and fixed wording. These break rules 1 and 2 |

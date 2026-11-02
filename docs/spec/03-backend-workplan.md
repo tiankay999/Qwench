@@ -39,10 +39,11 @@ checked without a key, so list that as not done. Everything must work with no AI
 |---|---|---|
 | 0 Setup | Done | `a63f1cd` |
 | 1 Data model | Done | `4158cef` |
+| Merge of `main` with the evidence engine | Done | `2d8286c` |
 | 2 onwards | Not started | |
 
 Known bugs from the review that are still open, by phase:
-- **Phase 3:** near-miss names returned as matches, foreign alerts at tier 1, tier 3 reached by one organisation or unreviewed contributions, numbers flagged without review, expired records still counted, suggested actions, partner numbers not found by a check.
+- **Phase 3:** foreign alerts at tier 1, tier 1 suggested action ignores new payee and amount, tier 2 can return `warn`, `internal_only` instead of `internal_review`, expired records still counted, unreviewed signals reaching tier 4, partner numbers not found by a check, entities with only pending records returned as `match: true`, tier 3 not counting independent sources, `/api/check` returning `normalized` and `value_hash`.
 - **Phase 4:** `isPublicHttpUrl`.
 
 ## Rules that must never break
@@ -85,7 +86,7 @@ Known bugs from the review that are still open, by phase:
 **Layout:**
 ```
 src/models/        new models
-src/engine/        normalize, extract, match, state, tier, report, templates
+src/services/      evidenceEngine.js (the engine), aiExtractor.js. Split into src/engine/ only if it helps
 src/routes/        public.js, institutional.js, plus new console routes (existing files stay where they are)
 src/middleware/    apiKeyAuth, rateLimiter, validate, errorHandler, plus session and channelKey
 src/scripts/       import-reviewed, migrate-legacy, seed-demo
@@ -149,7 +150,7 @@ labelled demo organisations, API keys, partner numbers, merchants, cases and fin
 If `src/data/reviewed/` is empty, use test fixtures for tests and tell Dre that real data is still needed.
 
 ## Phase 3: Evidence engine
-Build it in `src/engine/` as pure functions where possible, with this flow:
+`src/services/evidenceEngine.js` is the engine, added on `main` in `0e54cb6` and `da92e5c`. Fix and extend it rather than building a second one, using pure functions where possible, with this flow:
 
 1. **Extract:** names, domains, numbers, wallets, stated returns and warning signs,
    using rules first. AI can add candidates, but each must literally appear in the

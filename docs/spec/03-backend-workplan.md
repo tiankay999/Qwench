@@ -45,13 +45,13 @@ The bot calls `/api/check`, `/api/report`, `/api/trending`, `/api/verify-name`,
 | 3 Evidence engine | Done | `8cef2b8` |
 | Public replies reveal nothing hidden | Done | `d505d29` |
 | 4 Public API | Done | `83aeeb6` |
+| Link facts, domain age, more text rules | Done | `619b674` |
 | AI red flags, hidden-text defences | Done | `7b05c02` |
 | Real AI test, image fixes | Done | `e0ca91e` |
 | 5 Institution API | Done | `3748da1` |
 | 6 onwards | Not started | |
 
 Known bugs from the review that are still open, by phase:
-- **Not built:** domain age, because nothing is cached yet.
 
 ## Rules that must never break
 1. No scores, verdicts or advice anywhere in `/v1`.
@@ -209,6 +209,12 @@ If `src/data/reviewed/` is empty, use test fixtures for tests and tell Dre that 
 8. **Context:** return check (5% a day shown as about 1,825% a year, simple
    multiplication and labelled as such), warning signs described as what the message
    says, and domain age where cached.
+   `report.link_facts` gives where a link lands, shorteners, watched endings, no HTTPS,
+   password and payment forms, and sites up to 90 days old. A link is checked against
+   records at its landing address. Age comes from RDAP. For `.gh`, only the registry
+   answers, at `whois.nic.gh`: its terms forbid high-volume automated use, so it stays
+   off until `GH_WHOIS_LOOKUP=true`, is capped per hour and cached, and only the date is
+   read. Plain text uses rules only, not AI (Dre, 2 November 2026).
 9. **Report:** fixed templates produce `state_sentence`, `sources`, `return_check`,
    `warning_signs`, `questions_to_ask` and `footer`. The footer gives the data date,
    SEC 0800 100 065, CSA 292 and "Information, not advice."

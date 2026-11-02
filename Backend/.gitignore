@@ -2,3 +2,4 @@ node_modules/
 .env*
 # ...but keep the template, so a fresh clone has something to copy
 !.env.example
+

@@ -74,6 +74,7 @@ Reply:
     },
     "warning_signs": ["The message promises guaranteed returns."],
     "ai_warning_signs": [],
+    "link_facts": [],
     "questions_to_ask": ["Can you find a licence number on their website, and confirm it with SEC Ghana?"],
     "notes": [],
     "footer": "No reviewed records are loaded yet. SEC Ghana 0800 100 065. Cyber Security Authority 292. Information, not advice."
@@ -85,9 +86,11 @@ Reply:
 
 `warning_signs` come from fixed rules. `ai_warning_signs` were spotted by AI in an image or page, from a fixed list, with the proof checked against what was read. Show them under a label such as "Spotted by AI". Neither changes `state` or `tier`. Don't show either as a verdict.
 
+`link_facts` are plain facts about any links: where a link really leads, shorteners, website endings, no HTTPS, password and payment forms, and sites under 90 days old. A link is also checked against records at the address it lands on. An unknown age says nothing. None of these change `state` or `tier`.
+
 `also_checked` lists anything else found in the message, one line each. The reply leads with the most significant result, and an unknown payment number outranks a licensed name mentioned beside it.
 
-**How to show it:** use `report` in this order: `state_sentence`, `foreign_context`, `sources`, `also_checked`, `return_check.note`, `warning_signs`, `ai_warning_signs`, `questions_to_ask`, `notes`, `footer`. If `is_demo` is true, label the screen "Demo data".
+**How to show it:** use `report` in this order: `state_sentence`, `foreign_context`, `sources`, `also_checked`, `return_check.note`, `warning_signs`, `ai_warning_signs`, `link_facts`, `questions_to_ask`, `notes`, `footer`. If `is_demo` is true, label the screen "Demo data".
 
 | Field | Values |
 |---|---|

@@ -1,8 +1,9 @@
 import { HIDDEN_AI_IMAGE_SIGN, HIDDEN_AI_TEXT_SIGN, aiWarningSigns, aimedAtAi, cleanText, extract, mergeAiCandidates } from "../engine/extract.js";
-import { NOTES, alsoCheckedLine } from "../engine/report.js";
-import { EXACT_MATCH_ONLY, hashIdentifier, normalizeIdentifier, normalizeName } from "../lib/identifiers.js";
+import { NOTES, alsoCheckedLine, linkFact } from "../engine/report.js";
+import { EXACT_MATCH_ONLY, hashIdentifier, normalizeDomain, normalizeIdentifier, normalizeName } from "../lib/identifiers.js";
 import { Merchant, PublicReport } from "../models/index.js";
 import { extractFromImage, extractFromUrl } from "./aiExtractor.js";
+import { domainAge as lookUpDomainAge } from "./domainAge.js";
 import { evaluate, reviewedEntities } from "./evidenceEngine.js";
 import { findLookalikesInText, findNamesInText } from "./nameVerifier.js";
 import { scrapeUrl } from "./urlAnalyzer.js";
@@ -21,6 +22,47 @@ const MAX_CANDIDATES = 10;
 const MAX_READ_TEXT = 20_000;
 
 const PAYMENT_TYPES = new Set(["momo_number", "bank_account", "wallet"]);
+
+const SHORTENERS = new Set(["bit.ly", "tinyurl.com", "cutt.ly", "rb.gy", "is.gd", "shorturl.at", "t.co", "goo.gl", "ow.ly", "wa.me"]);
+const WATCHED_ENDINGS = [".tk", ".ml", ".ga", ".cf", ".gq", ".top", ".xyz", ".click", ".link"];
+const NEW_SITE_DAYS = 90;
+const MAX_AGE_LOOKUPS = 3;
+const DAY_MS = 86_400_000;
+
+/** Plain facts about the links, in fixed wording. They change no status or tier. */
+async function linkFacts({ domains, pages, ageOf }) {
+  const facts = [];
+  const add = (fact) => {
+    if (!facts.includes(fact)) facts.push(fact);
+  };
+
+  if (domains.some((d) => SHORTENERS.has(d))) add(linkFact("shortener"));
+
+  for (const page of pages) {
+    const from = normalizeDomain(page.link);
+    const to = page.finalUrl ? normalizeDomain(page.finalUrl) : from;
+    if (to && to !== from) add(linkFact("redirect", { from, to }));
+    if (page.isHttps === false) add(linkFact("noHttps"));
+    if (page.hasLoginForm) add(linkFact("login"));
+    if (page.hasPaymentForm) add(linkFact("payment"));
+  }
+
+  const landing = [...new Set([...domains.filter((d) => !SHORTENERS.has(d)), ...pages.map((p) => (p.finalUrl ? normalizeDomain(p.finalUrl) : "")).filter(Boolean)])];
+
+  for (const domain of landing) {
+    const ending = WATCHED_ENDINGS.find((e) => domain.endsWith(e));
+    if (ending) add(linkFact("ending", { ending }));
+  }
+
+  const ages = await Promise.all(landing.slice(0, MAX_AGE_LOOKUPS).map((domain) => Promise.resolve(ageOf(domain)).catch(() => null).then((date) => ({ domain, date }))));
+  for (const { domain, date } of ages) {
+    if (!date) continue;
+    const days = Math.max(0, Math.floor((Date.now() - new Date(date).getTime()) / DAY_MS));
+    if (days <= NEW_SITE_DAYS) add(linkFact("newSite", { domain, days, unit: days === 1 ? "day" : "days", date: new Date(date).toISOString().slice(0, 10) }));
+  }
+
+  return facts;
+}
 
 /**
  * Which result leads the reply. An unknown payment detail outranks a licensed name
@@ -65,10 +107,19 @@ async function readLinks(links, { scrape, readPage }, notes) {
   const pages = await Promise.all(
     links.map(async (link) => {
       const page = await scrape(link);
-      if (page.error) return { error: true };
+      if (page.error) return { error: true, link };
       const ai = await readPage(link, { page }).catch(() => null);
       // The meta description is left out: nobody sees it on the page.
-      return { text: [page.title, page.bodyText].filter(Boolean).join(" "), ai, hiddenAtAi: aimedAtAi(page.hiddenText) };
+      return {
+        link,
+        text: [page.title, page.bodyText].filter(Boolean).join(" "),
+        ai,
+        hiddenAtAi: aimedAtAi(page.hiddenText),
+        finalUrl: page.finalUrl,
+        isHttps: page.isHttps,
+        hasLoginForm: page.hasLoginForm,
+        hasPaymentForm: page.hasPaymentForm,
+      };
     })
   );
   if (pages.some((p) => p.error)) notes.push(NOTES.linkUnread);
@@ -80,6 +131,7 @@ export async function checkMessage(input, deps = {}) {
   const scrape = deps.scrape || scrapeUrl;
   const readPage = deps.readPage || extractFromUrl;
   const readImage = deps.readImage || extractFromImage;
+  const ageOf = deps.domainAge || lookUpDomainAge;
 
   const text = cleanText(input.text);
   const notes = [];
@@ -111,8 +163,12 @@ export async function checkMessage(input, deps = {}) {
   const skip = (word) => EXACT_MATCH_ONLY.has(normalizeName(word));
   const suggestedName = findLookalikesInText(readText, await reviewedEntities({ fuzzyOnly: true }), { skip })[0] || null;
 
+  // Where a link really lands, so a short link can't hide a listed site.
+  const landedOn = pages.map((p) => (p.finalUrl ? normalizeDomain(p.finalUrl) : "")).filter((d) => d && !found.domains.includes(d));
+
   const candidates = [
     ...(recipient ? [{ type, value: recipient }] : []),
+    ...landedOn.map((value) => ({ type: "domain", value })),
     ...found.numbers.map((value) => ({ type: "momo_number", value, advertised: advertisedAs })),
     ...found.wallets.map((value) => ({ type: "wallet", value })),
     ...found.domains.map((value) => ({ type: "domain", value })),
@@ -159,6 +215,9 @@ export async function checkMessage(input, deps = {}) {
   ];
   result.report.ai_warning_signs = [...new Set(aiSigns)].filter((sign) => !result.report.warning_signs.includes(sign));
   if (pages.some((p) => p.hiddenAtAi)) result.report.warning_signs.push(HIDDEN_AI_TEXT_SIGN);
+
+  const directDomain = recipient && ["domain", "url"].includes(type) ? [normalizeDomain(recipient)] : [];
+  result.report.link_facts = await linkFacts({ domains: [...new Set([...found.domains, ...directDomain])].filter(Boolean), pages, ageOf });
   if (aimedAtAi(image?.hidden_text)) result.report.warning_signs.push(HIDDEN_AI_IMAGE_SIGN);
   result.report.also_checked = [...new Set(others)];
   result.report.notes = notes;

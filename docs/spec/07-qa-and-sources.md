@@ -90,6 +90,10 @@ It reads forwarded messages and pulls out names, numbers and links. It doesn't d
 
 Yes, and they'll see only what is already public: regulator and sanctions records, legal states and reviewed impersonation. What partners have confirmed stays private, and a number with hidden reports looks exactly like a number with none. If they change number, a forwarded offer links the new one back to the same scheme.
 
+**Can a flyer trick your AI?**
+
+It can try, and we test for it. The AI only reads and has no tools, so it can't act on anything. Status, tier and wording come from reviewed records and fixed templates, so it has no way to change a result. Hidden text never feeds a check, and text aimed at AI becomes a warning sign in the reply.
+
 ### Law and regulators
 
 **How do you handle data protection?**

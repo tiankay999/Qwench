@@ -45,6 +45,7 @@ The bot calls `/api/check`, `/api/report`, `/api/trending`, `/api/verify-name`,
 | 3 Evidence engine | Done | `8cef2b8` |
 | Public replies reveal nothing hidden | Done | `d505d29` |
 | 4 Public API | Done | `83aeeb6` |
+| AI red flags, hidden-text defences | Done | `7b05c02` |
 | Real AI test, image fixes | Done | `e0ca91e` |
 | 5 Institution API | Done | `3748da1` |
 | 6 onwards | Not started | |
@@ -72,7 +73,7 @@ Known bugs from the review that are still open, by phase:
     presented as coming from MTN, a bank or a regulator.
 13. Demo payment numbers must use obviously fake values such as `+233240000000`,
     so nobody real is flagged.
-14. AI may extract details. It never decides status, tier or wording of a finding.
+14. AI may extract details and spot red flags from a fixed list, with its proof checked. It never decides status, tier or wording of a finding, and it can't remove what the rules find.
 15. A public reply may reveal only regulator and sanctions records, legal states and reviewed impersonation. Anything else must be identical to a no-record reply, so that "no record" is never a tell.
 
 ---
@@ -167,6 +168,9 @@ If `src/data/reviewed/` is empty, use test fixtures for tests and tell Dre that 
    discarded for holding banned words: that would let a flyer saying "100% safe" skip
    the check. For images, AI's own reading is the only text to compare with, so
    image results carry a note asking people to confirm the details.
+   AI also spots red flags from the list in `AI_RED_FLAGS`, quoting its proof. Nothing it
+   writes reaches a reply. Known limit: only inline styles are read, so a page can still
+   hide text with its own style sheet.
 2. **Normalise:**
    - `0241234567`, `233241234567` and `+233 24 123 4567` become `+233241234567`.
    - Domains: lowercase, without protocol, `www` or path.

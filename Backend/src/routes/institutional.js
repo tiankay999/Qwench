@@ -15,7 +15,7 @@ import { sendError } from "../middleware/errorHandler.js";
 import { institutionalLimiter } from "../middleware/rateLimiter.js";
 import { checkRules, contributionRules, feedRules, merchantNumberRules } from "../middleware/validate.js";
 import { buildIdentifier, hashIdentifier, normalizeIdentifier } from "../lib/identifiers.js";
-import { Case, Contribution, Entity, Identifier, Merchant, Record, Relation, Signal, recordAudit } from "../models/index.js";
+import { Case, Contribution, Entity, Identifier, Merchant, Organization, Relation, Signal, recordAudit } from "../models/index.js";
 import { evaluate } from "../services/evidenceEngine.js";
 import { logCheck } from "../utils/logCheck.js";
 
@@ -29,9 +29,11 @@ router.post("/check", apiKeyAuth("check"), institutionalLimiter, checkRules, asy
   const { recipient, type, amount_ghs: amountGhs, new_payee: newPayee = false } = req.body;
 
   try {
-    const result = await evaluate({ recipient, type, amount_ghs: amountGhs, new_payee: newPayee });
+    const org = await Organization.findById(req.org).select("confirmationCallLimitGhs warnsOnPartnerData").lean();
+    const result = await evaluate({ recipient, type, amount_ghs: amountGhs, new_payee: newPayee, audience: "institution", org });
 
-    await logCheck({
+    // Never awaited, and never throws: a log write must not hold up the reply.
+    logCheck({
       channel: "api",
       inputType: inputTypeFor(type),
       identifierHashes: [result.value_hash],
@@ -40,73 +42,48 @@ router.post("/check", apiKeyAuth("check"), institutionalLimiter, checkRules, asy
       tier: result.tier,
       flags: result.reason_codes,
       outcome: result.suggested_action,
+      isDemo: result.is_demo,
     });
 
-    if (result.needs_confirmation) {
-      return res.json({ match: false, did_you_mean: result.did_you_mean, checked_at: result.checked_at });
-    }
-
-    if (!result.match) {
-      return res.json({
-        match: false,
-        state: result.state,
-        tier: result.tier,
-        reason_codes: result.reason_codes,
-        note: "No record found. This does not mean it is safe or unsafe.",
-        checked_at: result.checked_at,
-      });
-    }
-
-    // The institutional shape is the same verdict with fuller provenance:
-    // the quote from the notice, the archive link, and who is being
-    // impersonated. The decision itself is identical to the public one.
-    const [entity, records, relations, signal] = await Promise.all([
-      Entity.findById(result.entity_id).select("name slug kind country").lean(),
-      Record.find({ entityId: result.entity_id, status: "active" }).populate("sourceId").lean(),
-      Relation.find({ fromEntity: result.entity_id, status: "active" }).populate("toEntity", "name slug kind").lean(),
-      Signal.findOne({
-        key: { $in: [String(result.entity_id), result.entity_slug] },
-        anomalyFlag: true,
-        reviewStatus: "reviewed",
-      })
-        .sort({ weekStart: -1 })
-        .lean(),
-    ]);
-
-    const merchant = await Merchant.findOne({ entityId: result.entity_id, status: "verified" })
-      .select("legalName verifiedAt")
-      .lean();
-
-    return res.json({
-      match: true,
+    const shared = {
+      match: result.match,
       entity: result.entity,
-      entity_slug: result.entity_slug,
-      entity_kind: entity?.kind || null,
       state: result.state,
       tier: result.tier,
       reason_codes: result.reason_codes,
-      sources: records
-        .filter((r) => r.sourceId)
-        .map((r) => ({
-          publisher: r.sourceId.publisher,
-          title: r.sourceId.title,
-          date: r.sourceId.publishedOn,
-          url: r.sourceId.url || null,
-          archive_url: r.sourceId.archiveUrl || null,
-          quote: r.quote || null,
-          record_type: r.type,
-          jurisdiction: r.jurisdiction,
-          effective_on: r.effectiveOn || null,
-          ends_on: r.endsOn || null,
-        })),
+      sources: result.sources,
+      foreign_context: result.foreign_context,
+      allowed_use: result.allowed_use,
+      suggested_action: result.suggested_action,
+      report: result.report,
+      is_demo: result.is_demo,
+      checked_at: result.checked_at,
+    };
+
+    if (!result.match) {
+      return res.json({ ...shared, ...(result.did_you_mean ? { did_you_mean: result.did_you_mean } : {}) });
+    }
+
+    const [entity, relations, signal] = await Promise.all([
+      result.entity_id ? Entity.findById(result.entity_id).select("kind").lean() : null,
+      result.entity_id ? Relation.find({ fromEntity: result.entity_id, status: "active" }).populate("toEntity", "name slug kind").lean() : [],
+      result.entity_slug
+        ? Signal.findOne({ key: { $in: [String(result.entity_id), result.entity_slug] }, anomalyFlag: true, reviewStatus: "reviewed" })
+            .sort({ weekStart: -1 })
+            .lean()
+        : null,
+    ]);
+
+    return res.json({
+      ...shared,
+      entity_slug: result.entity_slug,
+      entity_kind: entity?.kind || null,
       relations: relations.map((rel) => ({
         type: rel.type,
         to_entity: rel.toEntity?.name || null,
         to_entity_slug: rel.toEntity?.slug || null,
       })),
-      merchant_claim: merchant
-        ? { registered: true, business: merchant.legalName, verified_at: merchant.verifiedAt }
-        : { registered: false },
+      merchant_claim: result.merchant_claim || { registered: false },
       signal: signal
         ? {
             checks_this_week: signal.checksThisWeek,
@@ -115,12 +92,6 @@ router.post("/check", apiKeyAuth("check"), institutionalLimiter, checkRules, asy
             week_start: signal.weekStart,
           }
         : null,
-      warning_signs: result.warning_signs,
-      return_check: result.return_check,
-      questions_to_ask: result.questions_to_ask,
-      allowed_use: result.allowed_use,
-      suggested_action: result.suggested_action,
-      checked_at: result.checked_at,
     });
   } catch (err) {
     next(err);

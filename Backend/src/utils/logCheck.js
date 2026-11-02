@@ -17,6 +17,7 @@ export async function logCheck({
   tier = null,
   flags = [],
   outcome = "none",
+  isDemo = false,
 }) {
   try {
     await Check.create({
@@ -29,6 +30,7 @@ export async function logCheck({
       tier,
       flags,
       outcome,
+      isDemo,
     });
   } catch (err) {
     // The name only: a database error message can quote the values it rejected.

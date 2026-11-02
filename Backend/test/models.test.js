@@ -228,7 +228,12 @@ test("public check: nothing about the sender or number reaches the database", as
     { "x-sender": "+233249999999", "x-channel": "whatsapp" }
   );
   assert.equal(res.status, 200);
-  const rows = await Check.collection.find({}).toArray();
+  // The log write doesn't hold up the reply, so give it a moment to land.
+  let rows = [];
+  for (let i = 0; i < 50 && !rows.length; i += 1) {
+    rows = await Check.collection.find({}).toArray();
+    if (!rows.length) await new Promise((r) => setTimeout(r, 20));
+  }
   assert.equal(rows.length, 1);
   const stored = JSON.stringify(rows);
   assert.ok(!stored.includes("233240000000"));

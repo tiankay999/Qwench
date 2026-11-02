@@ -29,9 +29,10 @@ router.post("/check", checkRules, async (req, res, next) => {
   const channel = VALID_CHANNELS.includes(req.headers["x-channel"]) ? req.headers["x-channel"] : "web";
 
   try {
-    const result = await evaluate({ recipient, type, channel, amount_ghs: amountGhs, new_payee: newPayee });
+    const result = await evaluate({ recipient, type, amount_ghs: amountGhs, new_payee: newPayee, audience: "public" });
 
-    await logCheck({
+    // Never awaited, and never throws: a log write must not hold up the reply.
+    logCheck({
       channel,
       inputType: inputTypeFor(type),
       identifierHashes: [result.value_hash],
@@ -39,44 +40,19 @@ router.post("/check", checkRules, async (req, res, next) => {
       state: result.state,
       tier: result.tier,
       flags: result.reason_codes,
-      outcome: result.suggested_action,
+      outcome: "none",
+      isDemo: result.is_demo,
     });
 
-    // A close-but-not-exact name: ask which was meant rather than judging.
-    if (result.needs_confirmation) {
-      return res.json({
-        match: false,
-        did_you_mean: result.did_you_mean,
-        checked_at: result.checked_at,
-      });
-    }
-
-    if (!result.match) {
-      return res.json({
-        match: false,
-        state: result.state,
-        tier: result.tier,
-        reason_codes: result.reason_codes,
-        // Absence of a record is not a clean bill of health, and saying so is
-        // the single most important line in a no-match reply.
-        note: "No record found. This does not mean it is safe or unsafe.",
-        questions_to_ask: result.questions_to_ask,
-        checked_at: result.checked_at,
-      });
-    }
-
     return res.json({
-      match: true,
+      match: result.match,
       entity: result.entity,
       state: result.state,
       tier: result.tier,
       reason_codes: result.reason_codes,
-      sources: result.sources,
-      warning_signs: result.warning_signs,
-      return_check: result.return_check,
-      questions_to_ask: result.questions_to_ask,
-      allowed_use: result.allowed_use,
-      suggested_action: result.suggested_action,
+      ...(result.did_you_mean ? { did_you_mean: result.did_you_mean } : {}),
+      report: result.report,
+      is_demo: result.is_demo,
       checked_at: result.checked_at,
     });
   } catch (err) {

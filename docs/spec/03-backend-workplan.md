@@ -51,11 +51,21 @@ The bot calls `/api/check`, `/api/report`, `/api/trending`, `/api/verify-name`,
 | AI red flags, hidden-text defences | Done | `7b05c02` |
 | Real AI test, image fixes | Done | `e0ca91e` |
 | 5 Institution API | Done | `3748da1` |
+| Regulator collectors (SEC, Bank of Ghana), lending app links, contacts rule | Done | `68c902a` |
+| Console: notices, missing wording, source status | Done | `44a1bd2` |
+| Telegram bot | Built, not yet tried with a real bot token | `cc47ffb` |
 | 6 onwards | Not started | |
 
 Known bugs from the review that are still open, by phase:
 
 **External sources not built yet:** ASIC and OFAC files, the Wayback Machine, and GoPlus as labelled context for contract addresses. All are in `02-build-spec.md`.
+
+**Open on collection:**
+- OFAC: thousands of rows can't be reviewed one by one under the second-reviewer rule. Dre to decide between approving the list as a whole and taking wallets only.
+- Reviewer alerts have no channel yet. For now the review queue shows whether each source is working.
+- Bank of Ghana Notice 22 and the 2025-07 and 2022 SEC lists go to a person, because they're scanned or laid out differently.
+- CSA, NIC, FIC, EOCO, NCA and DPC aren't collected yet.
+- Regulators' terms: SEC's robots.txt allows crawling, its terms page is missing, and the Bank of Ghana disclaimer doesn't mention reuse. This isn't legal clearance.
 
 ## Rules that must never break
 1. No scores, verdicts or advice anywhere in `/v1`. Evidence levels are allowed: they grade the evidence, never the scheme, and are set by fixed rules.
@@ -113,7 +123,7 @@ Create these models. Add indexes on anything used for lookup.
 |---|---|---|
 | `Source` | publisher, type, title, url, publishedOn, retrievedAt, archiveUrl, isOfficial, isDemo | Every record needs one |
 | `Entity` | name, slug, aliases, kind (platform, company, token, app, merchant, authority), country, allowFuzzy, isDemo | Replaces `Investment` in `/v1` |
-| `Identifier` | entityId, type (name, domain, momo_number, bank_account, wallet, social_handle, telegram_link, tiktok_handle, merchant_id), raw, normalized, valueHash, origin (notice, partner, merchant, review, legacy), isDemo | Partner origin: `raw` and `normalized` stay empty. MoMo and bank numbers keep no readable form unless the origin is `notice`, because a notice is already public and the feed publishes it |
+| `Identifier` | entityId, type (name, domain, momo_number, bank_account, wallet, social_handle, telegram_link, tiktok_handle, merchant_id, app_id), raw, normalized, valueHash, origin (notice, partner, merchant, review, legacy), isDemo | Partner origin: `raw` and `normalized` stay empty. MoMo and bank numbers keep no readable form unless the origin is `notice`, because a notice is already public and the feed publishes it |
 | `Record` | entityId, sourceId, type (warning, licence, sandbox, registration, foreign_alert, sanction), jurisdiction, licenseType, quote, effectiveOn, endsOn, status (pending, active, expired, withdrawn), capturedBy, reviewedBy, reviewedAt, isDemo | Validation rejects `active` without a source, a quote, or with reviewer equal to capturer |
 | `Relation` | fromEntity, toEntity, type (impersonates, claims_affiliation, renamed_from, same_operator), sourceId, status (pending, active, disputed, resolved), capturedBy, reviewedBy, reviewedAt | An active impersonation needs a capturer and a different reviewer, because it is shown publicly. Real companies appear only as impersonated |
 | `Organization` | name, type (bank, momo, psp, vasp, merchant, regulator, qwench), status, confirmationCallLimitGhs, warnsOnPartnerData, isDemo | |
@@ -162,6 +172,15 @@ labelled demo organisations, API keys, partner numbers, merchants, cases and fin
 - Don't use the invented reports in `seed.js` anywhere in `/v1`.
 
 If `src/data/reviewed/` is empty, use test fixtures for tests and tell Dre that real data is still needed.
+
+### Collectors
+`src/collectors/`, run with `pnpm collect`, or on a timer with `COLLECTORS_ENABLED=true`.
+- Read each regulator's public feed. Only new or changed notices are processed.
+- Take names only from a notice's title or a numbered list in a notice titled as a list. Never take phone numbers. Attach a website only when the notice names one entity.
+- A record is pending, with `capturedBy: collector:<id>`, so the first approval is a real second person.
+- A changed notice goes to a person. Approved records stay as they are.
+- A record with no wording from its source can't go live until a reviewer copies it in. This is audited.
+- A source with no successful run in 24 hours shows as not working.
 
 ## Phase 3: Evidence engine
 `src/services/evidenceEngine.js` is the engine, added on `main` in `0e54cb6` and `da92e5c`. Fix and extend it rather than building a second one, using pure functions where possible, with this flow:

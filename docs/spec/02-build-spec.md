@@ -32,8 +32,10 @@ This is roughly **50–70 engineering hours**, so it probably won't all fit befo
 ### Sources
 | Source | Collection method | Used for |
 |---|---|---|
-| SEC notices, sandbox announcements, licensed list | By hand, then reviewed | Tier 1 and legal states |
-| Bank of Ghana notices and registers | By hand, then reviewed | Tier 1 and legal states |
+| SEC notices, sandbox announcements | Collected automatically, then a person approves each record | Tier 1 and legal states |
+| SEC licensed list | By hand, then reviewed | Legal states |
+| Bank of Ghana notices, including unlicensed lending apps | Collected automatically, then a person approves each record | Tier 1 |
+| Bank of Ghana registers | By hand, then reviewed | Legal states |
 | CSA alerts | By hand, then reviewed | Tier 1 and impersonation links |
 | ASIC list, OFAC list | Downloaded files | "Found abroad", sanctions, wallets |
 | RDAP, Wayback Machine | Lookups, cached | Context only |
@@ -43,6 +45,10 @@ This is roughly **50–70 engineering hours**, so it probably won't all fit befo
 | Merchants | Registration with proof of ownership | Registry |
 
 **Not used:** Truecaller data, automated TikTok scraping, reviews, and news reports treated as facts.
+
+**Collecting regulator notices:** collectors read each regulator's public notices on a schedule, apart from checks, so a slow regulator site can't slow a check. Checks only read Qwench's own database. Everything collected starts as a pending record, hidden from checks, with a saved copy and fingerprint of the original. A person approves each one. Nothing goes live automatically. A notice the collector can't read clearly goes to a person.
+
+**Lending apps:** app store links are identifiers (`app_id`), matched exactly. App names are matched exactly too, because many are ordinary words. Asking for your contacts or personal data is a warning sign, not a finding.
 
 **CoinGecko and GoPlus:** remove both from public replies. Keep GoPlus only as labelled context for contract addresses, and check its terms.
 
@@ -60,7 +66,7 @@ This is roughly **50–70 engineering hours**, so it probably won't all fit befo
 |---|---|---|
 | **sources** | publisher, type, title, url, publishedOn, retrievedAt, archiveUrl, isOfficial | Required by every record |
 | **entities** | name, slug, kind (platform, company, token, app, merchant, authority), country, allowFuzzy, isDemo | Replaces `Investment` |
-| **identifiers** | entityId, type (name, domain, momo_number, bank_account, wallet, social_handle, telegram_link, tiktok_handle, merchant_id), raw, normalized, valueHash, allowFuzzy, origin (notice, partner, merchant, review, legacy), isDemo | Numbers in +233 format. Partner data, and any number not published in a notice, stored as keyed hashes only |
+| **identifiers** | entityId, type (name, domain, momo_number, bank_account, wallet, social_handle, telegram_link, tiktok_handle, merchant_id, app_id), raw, normalized, valueHash, allowFuzzy, origin (notice, partner, merchant, review, legacy), isDemo | Numbers in +233 format. Partner data, and any number not published in a notice, stored as keyed hashes only |
 | **records** | entityId, sourceId, type (warning, licence, sandbox, registration, foreign_alert, sanction), jurisdiction, licenseType, quote, effectiveOn, endsOn, status (pending, active, expired, withdrawn), capturedBy, reviewedBy, reviewedAt, isDemo | **Active needs a source, a quote, and a reviewer different from the capturer** |
 | **relations** | fromEntity, toEntity, type (impersonates, claims_affiliation, renamed_from, same_operator), sourceId, status, capturedBy, reviewedBy, reviewedAt | An active impersonation needs a second reviewer. Real companies appear only as impersonated |
 | **organizations** | name, type (bank, momo, psp, vasp, merchant, regulator, qwench), status, confirmationCallLimitGhs, warnsOnPartnerData, isDemo | |

@@ -16,7 +16,7 @@ styles. Dre owns the backend, and the API format is in `docs/API.md` once writte
 | 7 | Console | Build the lookup screen | It shows the state, tier, reason, sources and allowed use |
 | 8 | Console | Build the payment check: a real API call beside a mock warning screen | A number found in a notice returns tier 1 with its source |
 | 9 | Console | Build the daily feed screen | The table loads from the feed |
-| 10 | Telegram | Reuse the same flows through the Bot API | The five demo cases work, or it's marked "Next" |
+| 10 | Telegram | Reuse the same flows through the Bot API. Built by Dre's side in `TelegramBot/` on `telegram-v1`, calling `/v1` | The five demo cases work with a real token, or it's marked "Next" |
 | 11 | Handoff | Tell Dre the screens are ready to style | Plain, working screens with shared styles |
 | 12 | Backup | Record a 60–90 second demo after styling | The video is saved in case Wi-Fi or the bot fails |
 

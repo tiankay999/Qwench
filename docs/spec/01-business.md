@@ -82,7 +82,7 @@ Its core product is **Know Your Payee**. Before a payment goes through, a bank o
 
 **Available after partnerships:** confirmed fraud numbers from MTN, other operators and banks. Regulator notices rarely list payment numbers, so **partners are essential**.
 
-**Not used:** Truecaller data, automated scraping, reviews and comments.
+**Not used:** Truecaller data, automated scraping of social media, reviews and comments. We collect public regulator notices automatically, and a person approves each record.
 
 ## 6. Our rules
 

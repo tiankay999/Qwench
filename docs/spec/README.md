@@ -20,7 +20,7 @@ Where older README text or `/api` behaviour conflicts with it, this folder wins.
 | Owner | Area |
 |---|---|
 | Dre | Backend, console UI, brand design, pitch design, QA |
-| Web app engineer | WhatsApp bot, Telegram bot, web app |
+| Web app engineer | WhatsApp bot, Telegram bot, web app. Dre built the first Telegram version on `telegram-v1` |
 | Data lead | Reviewed records, demo data |
 
 Stay in your own area. If you need something from another owner, list it for them.
@@ -51,7 +51,8 @@ Stay in your own area. If you need something from another owner, list it for the
   Members check partner numbers through `POST /v1/check`. No per-member keys or plain
   hashes, because phone numbers are few enough to guess offline.
 - **Foreign regulator alerts:** labelled context only. Ghana regulators and sanctions lists are tier 1.
-- **Sources not used:** Truecaller data, automated scraping, reviews. CoinGecko is out of public replies.
+- **Sources not used:** Truecaller data, automated scraping of social media or reviews. CoinGecko is out of public replies.
+- **Regulator notices:** collected automatically on a schedule. A person approves every record before it goes live.
 - **TikTok and Telegram:** user forwarding and manual review of public posts only.
 - **Cases:** checks that don't contact suspects, ending in an evidence pack for the authorities.
 - **Fair-use limit:** 20 checks per person per day on the bots, configurable.

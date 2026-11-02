@@ -9,10 +9,20 @@ import { WHATSAPP_URL } from "@/lib/channels";
 import { cn } from "@/lib/cn";
 import { useState } from "react";
 
+/**
+ * The masthead is the register's cover, so it keeps its dark ground in both
+ * themes rather than flipping with the page. That also removes the seam where
+ * a white bar used to sit on top of a dark hero.
+ *
+ * The current item is marked by a Beam underline as well as by colour, so it
+ * survives greyscale and forced-colours mode.
+ */
 const navLinks = [
   { href: "/", label: "Home" },
   { href: "/search", label: "Check" },
-  { href: "/community", label: "Reports" },
+  // was "Reports", which pointed at a page that deliberately has no report
+  // feed — Rule 5 means a report never becomes a public result.
+  { href: "/community", label: "Reporting" },
   { href: "/about", label: "About" },
   { href: "/for-business", label: "For business" },
   { href: "/blog", label: "Blog" },
@@ -24,15 +34,17 @@ export function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <nav className="sticky top-0 z-50 border-b border-border bg-surface/95 backdrop-blur-sm">
-      <div className="mx-auto max-w-7xl px-4 flex items-center justify-between h-16">
-        <div className="flex items-center gap-6 min-w-0">
-          <Link href="/" className="flex items-center gap-2 flex-shrink-0">
-            <QwenchLogo size={32} />
-            <span className="text-lg font-bold text-text-primary">Qwench</span>
+    <nav className="sticky top-0 z-50 bg-[#1f2a44]">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
+        <div className="flex min-w-0 items-center gap-7">
+          <Link href="/" className="flex flex-shrink-0 items-center gap-2.5">
+            <QwenchLogo size={30} />
+            <span className="font-display text-xl font-extrabold tracking-[-0.03em] text-[#F1F5F9]">
+              Qwench
+            </span>
           </Link>
 
-          <div className="hidden lg:flex items-center gap-0.5">
+          <div className="hidden items-center gap-1 lg:flex">
             {navLinks.map((link) => {
               const isActive =
                 link.href === "/" ? pathname === "/" : pathname.startsWith(link.href);
@@ -40,11 +52,13 @@ export function Navbar() {
                 <Link
                   key={link.href}
                   href={link.href}
+                  aria-current={isActive ? "page" : undefined}
                   className={cn(
-                    "px-3 py-2 text-sm font-medium rounded-lg transition-colors min-h-[44px] flex items-center whitespace-nowrap",
+                    "flex min-h-[44px] items-center whitespace-nowrap border-b-2 px-3 text-[15px] font-semibold",
+                    "transition-colors duration-150 ease-out-expo",
                     isActive
-                      ? "text-text-primary border-b-2 border-accent rounded-none"
-                      : "text-text-secondary hover:text-text-primary",
+                      ? "border-beam text-[#F1F5F9]"
+                      : "border-transparent text-[#A9B8CC] hover:text-[#F1F5F9]",
                   )}
                 >
                   {link.label}
@@ -54,42 +68,45 @@ export function Navbar() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex flex-shrink-0 items-center gap-2">
           <ThemeToggle />
           {WHATSAPP_URL && (
             <a
               href={WHATSAPP_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="hidden sm:inline-flex items-center gap-2 bg-accent text-primary font-semibold text-sm px-4 py-2.5 rounded-full hover:brightness-110 transition-all min-h-[44px]"
+              className={cn(
+                "hidden min-h-[44px] items-center gap-2 rounded-[10px] bg-accent-bright px-4 text-sm font-semibold text-white sm:inline-flex",
+                "transition-colors duration-150 ease-out-expo hover:bg-[#2b7dff]",
+              )}
             >
-              <MessageCircle className="w-4 h-4" aria-hidden />
+              <MessageCircle className="size-4" strokeWidth={1.75} aria-hidden />
               Check on WhatsApp
             </a>
           )}
           <button
-            className="lg:hidden p-2 min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
+            className="flex min-h-[44px] min-w-[44px] cursor-pointer items-center justify-center text-[#F1F5F9] lg:hidden"
             onClick={() => setMenuOpen(!menuOpen)}
             aria-label="Toggle menu"
             aria-expanded={menuOpen}
           >
             {menuOpen ? (
-              <X className="w-5 h-5 text-text-primary" aria-hidden />
+              <X className="size-5" strokeWidth={1.75} aria-hidden />
             ) : (
-              <Menu className="w-5 h-5 text-text-primary" aria-hidden />
+              <Menu className="size-5" strokeWidth={1.75} aria-hidden />
             )}
           </button>
         </div>
       </div>
 
       {menuOpen && (
-        <div className="lg:hidden border-t border-border bg-surface px-4 py-2">
+        <div className="border-t border-white/10 bg-[#1f2a44] px-4 pb-3 lg:hidden">
           {navLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
               onClick={() => setMenuOpen(false)}
-              className="block py-3 text-sm font-medium text-text-secondary hover:text-text-primary"
+              className="flex min-h-[48px] items-center text-[15px] font-semibold text-[#A9B8CC] hover:text-[#F1F5F9]"
             >
               {link.label}
             </Link>
@@ -99,7 +116,7 @@ export function Navbar() {
               href={WHATSAPP_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="block py-3 text-sm font-medium text-accent"
+              className="flex min-h-[48px] items-center text-[15px] font-semibold text-beam"
             >
               Check on WhatsApp
             </a>

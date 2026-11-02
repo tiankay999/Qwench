@@ -59,7 +59,7 @@ export function EvidenceReport({
         <StateBadge state={result.state} size="lg" />
         <p className="text-base text-text-primary mt-4 leading-relaxed">{r.state_sentence}</p>
         {result.is_demo && (
-          <p className="mt-3 inline-flex items-center gap-2 rounded-lg bg-warning/10 border border-warning/30 px-3 py-2 text-xs font-semibold text-warning">
+          <p className="mt-3 inline-flex items-center gap-2 rounded-lg bg-signs-tint px-3 py-2 text-xs font-semibold text-signs-ink">
             🧪 Includes demo data — not a real institution&apos;s record.
           </p>
         )}
@@ -181,7 +181,7 @@ export function EvidenceReport({
           </p>
           <Link
             href={`/report-scheme${result.entity || query ? `?name=${encodeURIComponent(result.entity || query || "")}` : ""}`}
-            className="inline-flex items-center justify-center mt-4 rounded-lg bg-accent px-5 py-2.5 text-sm font-semibold text-primary hover:brightness-110 transition-all min-h-[44px]"
+            className="inline-flex items-center justify-center mt-4 rounded-lg bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:bg-accent-bright transition-colors min-h-[44px]"
           >
             Submit a report
           </Link>

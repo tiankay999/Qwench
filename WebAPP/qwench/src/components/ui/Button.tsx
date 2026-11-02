@@ -1,7 +1,16 @@
 import { cn } from "@/lib/cn";
 import { type ButtonHTMLAttributes } from "react";
 
-type Variant = "primary" | "danger" | "outline" | "ghost";
+/**
+ * Secondary is the default in this system and primary is the exception: most
+ * actions on a register are navigation, and only one thing per view should
+ * read as "press this".
+ *
+ * The `danger` variant is gone. It existed on a public surface in a product
+ * that issues no verdicts, and the only thing it ever coloured was a verdict.
+ * Form errors use ErrorNote; destructive console actions have their own.
+ */
+type Variant = "primary" | "secondary" | "quiet" | "outline";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
@@ -10,13 +19,14 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variants: Record<Variant, string> = {
   primary:
-    "bg-accent text-primary font-semibold hover:brightness-110",
-  danger:
-    "bg-danger text-white font-semibold hover:brightness-110",
+    "bg-accent text-white font-semibold hover:bg-accent-bright active:bg-accent",
+  secondary:
+    "border border-border-strong bg-surface text-text-primary font-semibold hover:bg-surface-alt hover:border-text-secondary",
+  // kept as an alias so existing call sites keep working
   outline:
-    "border border-border text-text-primary bg-transparent hover:bg-surface-alt",
-  ghost:
-    "text-text-secondary hover:text-text-primary hover:bg-surface-alt",
+    "border border-border-strong bg-surface text-text-primary font-semibold hover:bg-surface-alt hover:border-text-secondary",
+  quiet:
+    "text-accent font-semibold hover:bg-surface-alt",
 };
 
 export function Button({
@@ -27,9 +37,13 @@ export function Button({
   ...props
 }: ButtonProps) {
   const cls = cn(
-    "inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm transition-all cursor-pointer min-h-[44px]",
+    "inline-flex items-center justify-center gap-2 rounded-[10px] px-6 py-3 text-base",
+    "min-h-[48px] cursor-pointer transition-colors duration-150 ease-out-expo",
+    // A disabled control must not depend on what is behind it for its
+    // contrast, so this sets real colours rather than reducing opacity.
+    "disabled:cursor-not-allowed disabled:bg-surface-alt disabled:text-text-muted disabled:border-transparent disabled:hover:bg-surface-alt",
     variants[variant],
-    className
+    className,
   );
 
   if (href) {

@@ -8,25 +8,34 @@ import { TIER, type EvidenceLevel as Level } from "@/lib/qwench";
  * it are written by the backend; the tier line explains where that evidence
  * came from. No number here is a score, and none of them can be compared to a
  * number on another page.
+ *
+ * The panel is set into the document on the sunken ground rather than lifted
+ * off it, and it carries no status colour of its own — the badge above it does
+ * that. A coloured fill here would read as the page's own conclusion.
  */
 export function EvidenceLevelBlock({ level, tier }: { level: Level; tier: number | null }) {
   const t = tier ? TIER[tier] : null;
 
   return (
-    <div className="rounded-xl border border-border bg-surface-alt p-5">
-      <div className="flex items-center gap-2 mb-2">
-        <Layers className="w-4 h-4 text-accent" aria-hidden />
-        <h2 className="text-xs font-bold uppercase tracking-wide text-text-muted">
-          Evidence level
-        </h2>
-      </div>
-      <p className="font-bold text-text-primary">{level.label}</p>
-      <p className="text-sm text-text-secondary mt-1">{level.meaning}</p>
+    <section className="rounded-[14px] bg-surface-alt px-5 py-5 md:px-6">
+      <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.06em] text-text-secondary">
+        <Layers className="size-3.5" strokeWidth={1.75} aria-hidden />
+        Evidence level
+      </h2>
+
+      <p className="font-display text-lg font-bold tracking-[-0.015em] text-text-primary">
+        {level.label}
+      </p>
+
+      <p className="mt-1.5 max-w-[68ch] text-base leading-relaxed text-text-secondary">
+        {level.meaning}
+      </p>
+
       {t && (
-        <p className="text-xs text-text-muted mt-3 pt-3 border-t border-border">
-          <span className="font-semibold text-text-secondary">{t.label}</span> — {t.meaning}
+        <p className="mt-4 border-t border-border pt-4 text-sm text-text-secondary">
+          <span className="font-semibold text-text-primary">{t.label}</span> — {t.meaning}
         </p>
       )}
-    </div>
+    </section>
   );
 }

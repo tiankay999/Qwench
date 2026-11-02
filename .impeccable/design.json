@@ -1,0 +1,201 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-02T00:00:00.000Z",
+  "title": "Design System: Qwench",
+  "extensions": {
+    "colorMeta": {
+      "action": {
+        "role": "primary",
+        "displayName": "Action Blue",
+        "canonical": "oklch(57.4% 0.234 260)",
+        "tonalRamp": ["#000740", "#001E6D", "#00369E", "#0050D1", "#196FFB", "#579BFF", "#8EC4FF", "#C4EDFF"]
+      },
+      "beam": {
+        "role": "primary",
+        "displayName": "Beam",
+        "canonical": "oklch(82.0% 0.120 225)",
+        "tonalRamp": ["#001524", "#002F44", "#004B67", "#00698B", "#0087AE", "#56ABCB", "#90CFE8", "#C7F3FF"]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "oklch(22.5% 0.062 258)",
+        "tonalRamp": ["#0A121E", "#1D293B", "#33435B", "#4A5F7D", "#657B9E", "#8CA0BD", "#B6C5DD", "#E1ECFE"]
+      },
+      "named": {
+        "role": "secondary",
+        "displayName": "Named",
+        "canonical": "oklch(37.9% 0.138 265)",
+        "tonalRamp": ["#050F2D", "#152552", "#273E79", "#3B59A3", "#5476C8", "#7E9DE2", "#AAC4FC", "#D8EBFF"]
+      },
+      "reviewed": {
+        "role": "secondary",
+        "displayName": "Reviewed",
+        "canonical": "oklch(54.1% 0.247 293)",
+        "tonalRamp": ["#18003E", "#31046A", "#4C1999", "#692ECB", "#864DF5", "#A581FF", "#C8B0FF", "#EDDEFF"]
+      },
+      "signs": {
+        "role": "secondary",
+        "displayName": "Signs",
+        "canonical": "oklch(76.9% 0.165 70)",
+        "tonalRamp": ["#250700", "#461B00", "#6A3100", "#904900", "#B36500", "#D18F37", "#EEB97A", "#FFE4B7"]
+      },
+      "listed": {
+        "role": "secondary",
+        "displayName": "Listed",
+        "canonical": "oklch(52.0% 0.094 223)",
+        "tonalRamp": ["#00151F", "#002E3D", "#014A5E", "#126780", "#3186A1", "#69A9C0", "#9CCDDF", "#CFF2FF"]
+      },
+      "none": {
+        "role": "neutral",
+        "displayName": "Nothing",
+        "canonical": "oklch(71.1% 0.035 256)",
+        "tonalRamp": ["#0D1219", "#222934", "#394351", "#525F70", "#6E7B8F", "#949FB0", "#BBC5D2", "#E5ECF6"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "One per page, in the frame. The page's own title, never a section's." },
+      "headline": { "displayName": "Headline", "purpose": "Major section openers." },
+      "title": { "displayName": "Title", "purpose": "The checked entity's name at the top of a report; subsection openers." },
+      "section": { "displayName": "Section", "purpose": "Fixed-size heading inside the reading column, where a fluid size would breathe unpredictably on scroll." },
+      "body-lead": { "displayName": "Body Lead", "purpose": "The state sentence and article openings. The one body size allowed to carry weight by size alone." },
+      "body": { "displayName": "Body", "purpose": "Running text. Measure 65-72ch." },
+      "body-small": { "displayName": "Body Small", "purpose": "Notes, evidence-level meaning line, badge text." },
+      "label": { "displayName": "Label", "purpose": "Uppercase running heads inside the report: Evidence level, Sources, Questions to ask." },
+      "mono": { "displayName": "Mono", "purpose": "Identifiers, dates, reference numbers, wallet addresses, stated returns. Data only, never atmosphere." }
+    },
+    "shadows": [
+      { "name": "raised", "value": "0 1px 2px rgba(8, 27, 56, 0.06), 0 4px 12px rgba(8, 27, 56, 0.08)", "purpose": "The check field on focus, and a card the reader is actively hovering." },
+      { "name": "floating", "value": "0 8px 24px rgba(8, 27, 56, 0.12), 0 2px 6px rgba(8, 27, 56, 0.08)", "purpose": "Popovers, dropdowns, the mobile navigation sheet." },
+      { "name": "sticky", "value": "0 -2px 16px rgba(8, 27, 56, 0.10)", "purpose": "A bar pinned to the bottom of the viewport, casting upward." },
+      { "name": "raised-dark", "value": "0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.4)", "purpose": "Dark-theme raised. Pairs with a 1px #1E3A5F top hairline, since a shadow alone cannot separate two dark surfaces." }
+    ],
+    "motion": [
+      { "name": "ease-standard", "value": "cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "Exponential ease-out. Default for hover, focus and state transitions." },
+      { "name": "duration-control", "value": "150ms", "purpose": "Buttons, links, inputs, badges. Anything the pointer touches." },
+      { "name": "duration-surface", "value": "240ms", "purpose": "Popovers, sheets, disclosure. Anything that enters the page." },
+      { "name": "reduced-motion", "value": "@media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }", "purpose": "Honoured globally. Nothing in this system depends on motion to be understood." }
+    ],
+    "breakpoints": [
+      { "name": "xs", "value": "480px" },
+      { "name": "sm", "value": "768px" },
+      { "name": "md", "value": "1024px" },
+      { "name": "lg", "value": "1280px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one action a reader may read as 'press this'. One per view; the check action owns it wherever a check exists.",
+      "html": "<button class=\"ds-btn-primary\">Check this name</button>",
+      "css": ".ds-btn-primary { font-family: Inter, system-ui, sans-serif; font-size: 1rem; font-weight: 600; line-height: 1.65; color: #FFFFFF; background: #0B6BFF; border: none; border-radius: 10px; padding: 12px 24px; min-height: 48px; cursor: pointer; transition: background 150ms cubic-bezier(0.22, 1, 0.36, 1); } .ds-btn-primary:hover { background: #0A57CC; } .ds-btn-primary:focus-visible { outline: 2px solid #0B6BFF; outline-offset: 2px; } .ds-btn-primary:active { background: #0952B8; } .ds-btn-primary:disabled { background: #EEF2F7; color: #64748B; cursor: not-allowed; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "The default button. Most actions on a register are navigation, so Secondary is the common case and Primary the exception.",
+      "html": "<button class=\"ds-btn-secondary\">Open an appeal</button>",
+      "css": ".ds-btn-secondary { font-family: Inter, system-ui, sans-serif; font-size: 1rem; font-weight: 600; line-height: 1.65; color: #081B38; background: #FFFFFF; border: 1px solid #7E8B9E; border-radius: 10px; padding: 12px 24px; min-height: 48px; cursor: pointer; transition: background 150ms cubic-bezier(0.22, 1, 0.36, 1), border-color 150ms cubic-bezier(0.22, 1, 0.36, 1); } .ds-btn-secondary:hover { background: #EEF2F7; border-color: #4B5563; } .ds-btn-secondary:focus-visible { outline: 2px solid #0B6BFF; outline-offset: 2px; }"
+    },
+    {
+      "name": "Check Field",
+      "kind": "input",
+      "refersTo": "input-check",
+      "description": "The one control most people will ever use. 60px tall, holds an inline submit, and takes the only Raised shadow on the page when focused.",
+      "html": "<div class=\"ds-check\"><svg class=\"ds-check-mark\" width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/></svg><input class=\"ds-check-input\" type=\"text\" placeholder=\"Name, number, link or wallet address\" aria-label=\"What are you checking?\" /><button class=\"ds-check-go\">Check</button></div>",
+      "css": ".ds-check { display: flex; align-items: center; gap: 12px; background: #FFFFFF; border: 1px solid #7E8B9E; border-radius: 14px; padding: 8px 8px 8px 20px; min-height: 60px; transition: border-color 150ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 150ms cubic-bezier(0.22, 1, 0.36, 1); } .ds-check:focus-within { border-color: #0B6BFF; box-shadow: 0 0 0 2px #FFFFFF, 0 0 0 4px #0B6BFF, 0 1px 2px rgba(8, 27, 56, 0.06), 0 4px 12px rgba(8, 27, 56, 0.08); } .ds-check-mark { color: #64748B; flex: none; } .ds-check-input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; font-family: Inter, system-ui, sans-serif; font-size: 1.25rem; line-height: 1.55; color: #081B38; } .ds-check-input::placeholder { color: #64748B; } .ds-check-input::selection { background: #C4EDFF; color: #081B38; } .ds-check-go { font-family: Inter, system-ui, sans-serif; font-size: 1rem; font-weight: 600; color: #FFFFFF; background: #0B6BFF; border: none; border-radius: 10px; padding: 12px 24px; min-height: 44px; cursor: pointer; transition: background 150ms cubic-bezier(0.22, 1, 0.36, 1); } .ds-check-go:hover { background: #0A57CC; } .ds-check-go:focus-visible { outline: 2px solid #0B6BFF; outline-offset: 2px; }"
+    },
+    {
+      "name": "Status Badge — Named",
+      "kind": "chip",
+      "refersTo": "state-badge-named",
+      "description": "The signature component. Colour, a drawn mark and words are always all three present; remove any one and the other two still say the same thing.",
+      "html": "<span class=\"ds-badge-named\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3\"/><path d=\"M12 9v4\"/><path d=\"M12 17h.01\"/></svg>Named in a notice</span>",
+      "css": ".ds-badge-named { display: inline-flex; align-items: center; gap: 8px; font-family: Inter, system-ui, sans-serif; font-size: 0.875rem; font-weight: 600; line-height: 1.6; color: #16327A; background: #E6EDFB; border-radius: 9999px; padding: 6px 14px; }"
+    },
+    {
+      "name": "Status Badge — Nothing",
+      "kind": "chip",
+      "refersTo": "state-badge-none",
+      "description": "The 'not enough to go on' badge. Presented with the same care as any other finding, because an absence of record is a finding and not a failure.",
+      "html": "<span class=\"ds-badge-none\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m13.5 8.5-5 5\"/><path d=\"m8.5 8.5 5 5\"/><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/></svg>Not enough to go on</span>",
+      "css": ".ds-badge-none { display: inline-flex; align-items: center; gap: 8px; font-family: Inter, system-ui, sans-serif; font-size: 0.875rem; font-weight: 600; line-height: 1.6; color: #53647C; background: #EEF1F5; border-radius: 9999px; padding: 6px 14px; }"
+    },
+    {
+      "name": "Evidence Panel",
+      "kind": "custom",
+      "refersTo": "evidence-panel",
+      "description": "The block that leads every report. Set into the document on the Sunken ground rather than lifted off it. No colour fill, no icon over 16px, and no number anywhere in it.",
+      "html": "<section class=\"ds-evidence\"><h2 class=\"ds-evidence-head\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z\"/><path d=\"m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65\"/><path d=\"m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65\"/></svg>Evidence level</h2><p class=\"ds-evidence-label\">Regulator warning</p><p class=\"ds-evidence-meaning\">A Ghana regulator or sanctions list has named this.</p><p class=\"ds-evidence-tier\"><span class=\"ds-evidence-tier-name\">Tier 1</span> &mdash; A regulator notice or a sanctions list.</p></section>",
+      "css": ".ds-evidence { background: #EEF2F7; border-radius: 14px; padding: 20px 24px; } .ds-evidence-head { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-family: Inter, system-ui, sans-serif; font-size: 0.75rem; font-weight: 600; line-height: 1.35; letter-spacing: 0.06em; text-transform: uppercase; color: #4B5563; } .ds-evidence-label { margin: 0; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; font-size: 1.125rem; font-weight: 700; line-height: 1.3; letter-spacing: -0.015em; color: #081B38; } .ds-evidence-meaning { margin: 6px 0 0; font-family: Inter, system-ui, sans-serif; font-size: 1rem; line-height: 1.65; color: #4B5563; max-width: 68ch; text-wrap: pretty; } .ds-evidence-tier { margin: 16px 0 0; padding-top: 16px; border-top: 1px solid #E5E7EB; font-family: Inter, system-ui, sans-serif; font-size: 0.875rem; line-height: 1.6; color: #4B5563; } .ds-evidence-tier-name { font-weight: 600; color: #081B38; }"
+    },
+    {
+      "name": "Source Row",
+      "kind": "custom",
+      "refersTo": "source-line",
+      "description": "A claim's attribution, bound to the claim it supports. Publisher in Muted, date in Roboto Mono with tabular figures so a column of dates aligns, link in Action Blue Text.",
+      "html": "<ul class=\"ds-sources\"><li class=\"ds-source\"><span class=\"ds-source-pub\">SEC Ghana</span><time class=\"ds-source-date\">2025-07-15</time><a class=\"ds-source-link\" href=\"#\">Notice to the public<svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M15 3h6v6\"/><path d=\"M10 14 21 3\"/><path d=\"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6\"/></svg></a></li></ul>",
+      "css": ".ds-sources { list-style: none; margin: 0; padding: 0; } .ds-source { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 12px 0; border-bottom: 1px solid #E5E7EB; } .ds-source:last-child { border-bottom: none; } .ds-source-pub { font-family: Inter, system-ui, sans-serif; font-size: 0.875rem; font-weight: 600; line-height: 1.6; color: #4B5563; } .ds-source-date { font-family: 'Roboto Mono', ui-monospace, monospace; font-size: 0.875rem; line-height: 1.5; font-feature-settings: 'tnum' 1, 'zero' 1; color: #64748B; } .ds-source-link { display: inline-flex; align-items: center; gap: 5px; font-family: Inter, system-ui, sans-serif; font-size: 0.875rem; line-height: 1.6; color: #0A57CC; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; } .ds-source-link:hover { text-decoration-thickness: 2px; } .ds-source-link:focus-visible { outline: 2px solid #0B6BFF; outline-offset: 2px; border-radius: 4px; }"
+    },
+    {
+      "name": "Masthead",
+      "kind": "nav",
+      "refersTo": "navigation",
+      "description": "The register's cover. Ink Soft ground, wordmark in Beam and Paper, and a current item marked by a Beam underline as well as by colour.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-mark\" href=\"#\"><span class=\"ds-nav-q\">Q</span>wench</a><ul class=\"ds-nav-list\"><li><a class=\"ds-nav-link ds-nav-link--current\" href=\"#\" aria-current=\"page\">Check</a></li><li><a class=\"ds-nav-link\" href=\"#\">Sources</a></li><li><a class=\"ds-nav-link\" href=\"#\">Report a scheme</a></li></ul></nav>",
+      "css": ".ds-nav { display: flex; align-items: center; gap: 32px; background: #1F2A44; padding: 16px 24px; } .ds-nav-mark { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; font-size: 1.25rem; font-weight: 800; letter-spacing: -0.03em; color: #F1F5F9; text-decoration: none; } .ds-nav-q { color: #60D4FF; } .ds-nav-list { display: flex; align-items: center; gap: 24px; list-style: none; margin: 0; padding: 0; } .ds-nav-link { font-family: Inter, system-ui, sans-serif; font-size: 0.9375rem; font-weight: 600; color: #A9B8CC; text-decoration: none; padding: 6px 0; border-bottom: 2px solid transparent; transition: color 150ms cubic-bezier(0.22, 1, 0.36, 1), border-color 150ms cubic-bezier(0.22, 1, 0.36, 1); } .ds-nav-link:hover { color: #F1F5F9; } .ds-nav-link--current { color: #F1F5F9; border-bottom-color: #60D4FF; } .ds-nav-link:focus-visible { outline: 2px solid #60D4FF; outline-offset: 4px; border-radius: 4px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Public Register",
+    "overview": "A register is a bound book of records kept by a bureau. Each entry names who published it and when. Anyone may read it; nobody may edit it by shouting; a party who thinks an entry is wrong files to have it corrected. It does not grade the entries, rank them, or tell the reader what to do with them — it keeps them, legibly, and lets the reader draw their own conclusion. That is precisely what Qwench is, and the interface should feel like consulting one rather than consulting an oracle.\n\nThis has a direct consequence for how the pages are built. Qwench's core surface is a Read surface: the visitor came to understand something, so the page is first a document of its kind. The frame — masthead, ground, section openers, the way sources and identifiers are set — carries the brand fully and could belong to no other product. The reading column inside it stays calm: a real measure, real contrast, nothing performing behind the text. The forms and the watchlist are Operate surfaces where the same palette and type serve standard, boring, recognisable controls.\n\nThe hardest discipline here is a negative one. Every visual convention this category reaches for is a verdict in disguise: the gauge, the red-amber-green band, the shield, the big green tick, the score out of ten. Qwench is legally and editorially committed to issuing no verdict, so none of that vocabulary is available — not softened, not relabelled. The design has to make a person feel informed without ever letting them feel told. Restraint is not this system's taste; it is its argument.",
+    "keyCharacteristics": [
+      "A document, not a dashboard. The report reads top to bottom in one column, in the backend's fixed order.",
+      "Status colours that are categorically distinct and deliberately not a scale.",
+      "Every claim visually bound to its publisher and date, in monospace.",
+      "Flat by default; depth only where something genuinely floats.",
+      "Dark navy as a composed theme for a phone used outdoors, not an inverted light theme.",
+      "No green, no tick, no gauge, no number that could be read as a score."
+    ],
+    "rules": [
+      { "name": "The Flat Spectrum Rule", "body": "The five status colours are categorical, never ordinal. They may not be arranged into a gradient, a ramp, a traffic light, a meter, a sorted legend or any sequence that implies one is worse than another — because a sequence is a score, and a score is the one output this product does not produce. Navy, violet, amber, teal and grey were chosen partly because they refuse to form a scale. The audit test: if a reader could rank the five by looking at them, the implementation is wrong.", "section": "colors" },
+      { "name": "The No Approval Rule", "body": "Nothing in this system renders approval. No green at any lightness, no tick mark, no shield, no badge ribbon, no padlock, no 'trusted' chrome. 'On a regulator's list' is a fact about a list, not an endorsement, and it must never be dressed as one. This extends to the one sentence the product is allowed to say about safety — 'This does not mean it is safe or unsafe' — which is set in Muted body text like any other note, never highlighted, never in a callout.", "section": "colors" },
+      { "name": "The Action Blue Rule", "body": "#0B6BFF belongs to actions and to nothing else. The moment a status, state, tier or evidence level is painted in it, the reader has been handed Qwench's opinion dressed as a button.", "section": "colors" },
+      { "name": "The Monospace Is Evidence Rule", "body": "Roboto Mono marks things a reader might copy, compare or quote: a notice date, an appeal reference, a wallet address, a phone number published in a notice, a stated return. It is never used to make something look technical, never for running text, never for headings, and never for a word. If it is not a datum, it is Inter.", "section": "typography" },
+      { "name": "The Publisher Line Rule", "body": "A claim and its attribution are one typographic unit, never separated by a layout boundary. Publisher in Muted Body Small, date in Mono, link in Action Blue Text, on the line directly beneath the claim they belong to. A source that has scrolled away from its claim has stopped doing its job, and the claim has silently become Qwench's own.", "section": "typography" },
+      { "name": "The One Display Rule", "body": "One Display-size element per page. The report's own subject — the name that was checked — outranks any marketing line on the same page.", "section": "typography" },
+      { "name": "The Fixed Order Rule", "body": "The report renders in the backend's order — state sentence, evidence level, sources, return check, warning signs, AI warning signs, link facts, foreign context, also checked, notes, questions to ask, disclaimer, footer. A surface may add headings and marks. It may not reorder, merge, summarise, promote a block into a highlight, or add a block of its own. The WhatsApp reply and this page are the same document in two typefaces.", "section": "layout" },
+      { "name": "The No Summary Rule", "body": "Nothing may be rendered above the state sentence that characterises what follows. No at-a-glance strip, no 'here's what we found', no count of findings. The first thing a reader meets is the record.", "section": "layout" },
+      { "name": "The Earned Shadow Rule", "body": "Every shadow has an offset and a soft blur, and exists because something is actually above the page. A zero-offset coloured halo is decoration; a hard offset block shadow is a costume this world never chose. Neither ships.", "section": "elevation" },
+      { "name": "The Three-Signal Rule", "body": "A status is always carried by colour, a drawn mark, and words together. Remove any one of the three and the remaining two must still say the same thing — which is what makes the system survive greyscale printing, forced-colours mode, a colour-blind reader, and a screenshot sent through three WhatsApp re-compressions.", "section": "components" },
+      { "name": "The Drawn Icon Rule", "body": "Every mark in the interface is drawn — Lucide, or authored SVG, at 1.5px stroke. Emoji are not an icon system: they render differently on every platform, they are announced as their Unicode names by screen readers, and the green tick in particular asserts exactly the approval this product may never give.", "section": "components" }
+    ],
+    "dos": [
+      "Do reserve Action Blue (#0B6BFF) for actions, and use Action Blue Text (#0A57CC) wherever that blue would be body-size text.",
+      "Do put a drawn mark and the state's words beside every status colour, so no meaning is carried by hue alone.",
+      "Do set the publisher, the date and the link directly beneath the claim they support, with the date in Roboto Mono.",
+      "Do render the report in the backend's fixed order, adding only headings and marks.",
+      "Do use dark ink (#081B38) on the amber fill, and #8A5A00 for amber text — raw #F59E0B fails contrast in both directions.",
+      "Do compose the dark theme on its own terms: #081B38 ground, #0F2A4F surfaces, #4D94FF in place of Action Blue for text, #60D4FF for links.",
+      "Do keep prose to 65-72ch and body text at 16px or larger.",
+      "Do theme the surfaces the browser would otherwise own — selection, caret, scrollbar, focus ring, underline offset — from this palette.",
+      "Do state plainly where Qwench has nothing: 'Not enough to go on' is a finding, and it is presented with the same care as any other."
+    ],
+    "donts": [
+      "Don't introduce green at any lightness, a tick, a shield, a padlock or any other mark of approval. There is no 'safe' token in this system and there will not be one.",
+      "Don't arrange the status colours into a ramp, meter, traffic light, gauge or sorted legend. A sequence is a score.",
+      "Don't render any number that could be read as a rating — no x/10, no percentage of confidence, no count of findings presented as a magnitude.",
+      "Don't use emoji as icons anywhere, including in the state map in src/lib/qwench.ts, which currently ships seven of them and must move to drawn Lucide marks.",
+      "Don't write a summary, verdict, conclusion or recommendation above or below the report. The disclaimer is the last word, and it is the backend's.",
+      "Don't nest a card inside a card, or reach for a card where spacing and a hairline would group the content.",
+      "Don't put a coloured left border above 1px on a card, list item or callout. The only exception is the 3px rule on a quoted regulator notice.",
+      "Don't use Roboto Mono for anything that is not a datum, or as a shorthand for 'technical'.",
+      "Don't add an eyebrow or kicker above a heading. The uppercase Label role marks a report section; it is a running head on its own line and never a decorative line above a larger heading.",
+      "Don't imply a relationship with MTN, a bank or a regulator — no logo strip, no 'trusted by', no institution mark in the frame. They are prospects, and sources are credited in a sources list, not displayed as endorsements.",
+      "Don't invent counts, feeds, trending lists or testimonials to fill a layout. There is no public entities endpoint and no public feed; if a design needs one, the design is wrong until the endpoint exists."
+    ]
+  }
+}

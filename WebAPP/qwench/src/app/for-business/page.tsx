@@ -127,7 +127,7 @@ export default function ForBusinessPage() {
           <div className="flex flex-wrap gap-3">
             <a
               href="mailto:hello@qwench.gh?subject=API%20access"
-              className="inline-flex items-center justify-center rounded-lg bg-accent px-5 py-2.5 text-sm font-semibold text-primary hover:brightness-110 transition-all min-h-[44px]"
+              className="inline-flex items-center justify-center rounded-lg bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:bg-accent-bright transition-colors min-h-[44px]"
             >
               Request API access
             </a>

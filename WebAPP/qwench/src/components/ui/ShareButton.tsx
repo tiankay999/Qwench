@@ -33,7 +33,7 @@ export function ShareButton({ title }: { title?: string }) {
     >
       {copied ? (
         <>
-          <Check className="w-4 h-4 text-safe" aria-hidden />
+          <Check className="w-4 h-4 text-listed" aria-hidden />
           Link copied
         </>
       ) : (

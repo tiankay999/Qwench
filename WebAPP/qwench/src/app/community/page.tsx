@@ -57,7 +57,7 @@ export default function CommunityPage() {
 
       <Link
         href="/report-scheme"
-        className="inline-flex items-center gap-2 mt-6 rounded-lg bg-accent px-5 py-3 text-sm font-semibold text-primary hover:brightness-110 transition-all min-h-[44px]"
+        className="inline-flex items-center gap-2 mt-6 rounded-lg bg-accent px-5 py-3 text-sm font-semibold text-white hover:bg-accent-bright transition-colors min-h-[44px]"
       >
         <Plus className="w-4 h-4" aria-hidden />
         Submit a report

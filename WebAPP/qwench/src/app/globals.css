@@ -1,5 +1,24 @@
 @import "tailwindcss";
 
+/* ---------------------------------------------------------------------------
+   Qwench design tokens. The system is documented in /DESIGN.md at the repo
+   root; this file is its implementation and the two must not drift.
+
+   Two rules decide almost everything here:
+
+   1. Action colour is for things you can DO. Status colour is for what the
+      record SAYS. They never borrow from each other, because the moment a
+      legal state is painted in the button colour, Qwench has handed the
+      reader an opinion dressed as an action.
+
+   2. The five status colours are categorical, never a scale. There is no
+      ordering, no ramp and no traffic light, because a sequence is a score
+      and scores are the one thing this product does not produce. There is
+      deliberately no --safe token, and there never will be.
+
+   Every pair below was measured, not eyeballed. Ratios are in the comments.
+--------------------------------------------------------------------------- */
+
 /* next-themes is set to attribute="class" with enableSystem={false}, so the
    toggle is the only thing that decides the theme. Point Tailwind's dark:
    variant at that class too, or dark: would follow the OS instead and
@@ -7,52 +26,196 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme inline {
-  --color-primary: var(--primary);
-  --color-accent: var(--accent);
-  --color-danger: var(--danger);
-  --color-safe: var(--safe);
-  --color-warning: var(--warning);
-  --color-mid-navy: var(--mid-navy);
+  /* grounds and ink */
+  --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-surface-alt: var(--surface-alt);
   --color-border: var(--border-color);
+  --color-border-strong: var(--border-strong);
   --color-text-primary: var(--text-primary);
   --color-text-secondary: var(--text-secondary);
   --color-text-muted: var(--text-muted);
-  --color-bg: var(--bg);
+
+  /* brand */
+  --color-primary: var(--primary);
+  --color-accent: var(--accent);
+  --color-accent-bright: var(--accent-bright);
+  --color-beam: var(--beam);
+  --color-mid-navy: var(--mid-navy);
+
+  /* form errors only. Not a status, not a verdict, never on a report. */
+  --color-danger: var(--danger);
+
+  /* the five status roles */
+  --color-named: var(--named);
+  --color-named-tint: var(--named-tint);
+  --color-named-ink: var(--named-ink);
+  --color-reviewed: var(--reviewed);
+  --color-reviewed-tint: var(--reviewed-tint);
+  --color-reviewed-ink: var(--reviewed-ink);
+  --color-signs: var(--signs);
+  --color-signs-tint: var(--signs-tint);
+  --color-signs-ink: var(--signs-ink);
+  --color-listed: var(--listed);
+  --color-listed-tint: var(--listed-tint);
+  --color-listed-ink: var(--listed-ink);
+  --color-nothing: var(--nothing);
+  --color-nothing-tint: var(--nothing-tint);
+  --color-nothing-ink: var(--nothing-ink);
+
+  /* three families: headings, reading, data */
   --font-sans: var(--font-inter);
+  --font-display: var(--font-jakarta);
+  --font-mono: var(--font-roboto-mono);
+
+  /* the whole shadow vocabulary. Anything not here uses a ground change. */
+  --shadow-raised: 0 1px 2px rgb(8 27 56 / 0.06), 0 4px 12px rgb(8 27 56 / 0.08);
+  --shadow-floating: 0 8px 24px rgb(8 27 56 / 0.12), 0 2px 6px rgb(8 27 56 / 0.08);
+  --shadow-sticky: 0 -2px 16px rgb(8 27 56 / 0.10);
+
+  --ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 :root {
-  --primary: #1a1a2e;
-  --accent: #00d4aa;
-  --danger: #e94560;
-  --safe: #2ecc71;
-  --warning: #f39c12;
-  --mid-navy: #0F3460;
-  --bg: #f5f6f8;
-  --surface: #ffffff;
-  --surface-alt: #f8f9fa;
-  --border-color: #e5e7eb;
-  --text-primary: #1a1a2e;
-  --text-secondary: #4b5563;
-  --text-muted: #9ca3af;
+  /* --- grounds ------------------------------------------------------ */
+  --bg: #f7f9fc;          /* canvas */
+  --surface: #ffffff;     /* lifted off the canvas */
+  --surface-alt: #eef2f7; /* pressed into it */
+
+  /* --- ink ---------------------------------------------------------- */
+  --text-primary: #081b38;   /* 17.15:1 on surface */
+  --text-secondary: #4b5563; /*  7.56:1 on surface, 6.72:1 on surface-alt */
+  --text-muted: #64748b;     /*  4.51:1 on canvas — the lightest text allowed.
+                                 Never put it on surface-alt (4.23:1). */
+
+  /* --- edges -------------------------------------------------------- */
+  --border-color: #e5e7eb;  /* decorative dividers. Carries no meaning. */
+  --border-strong: #7e8b9e; /* 3.46:1 — the edge of anything operable */
+
+  /* --- brand -------------------------------------------------------- */
+  --primary: #081b38;
+  --mid-navy: #1f2a44;
+  --accent: #0a57cc;        /* 6.13:1 as text, 6.47:1 under white as a fill.
+                               One value that is legal in both roles. */
+  --accent-bright: #0b6bff; /* the sheet's blue. 4.37:1 on canvas, so it is a
+                               fill and large-text colour only. */
+  --beam: #60d4ff;          /* 1.61:1 on white — never text in this theme. */
+
+  /* --- form errors, and nothing else -------------------------------- */
+  --danger: #b42318;
+
+  /* --- status: categorical, not ordinal ----------------------------- */
+  --named: #1e3a8a;          --named-tint: #e6edfb;     --named-ink: #16327a;     /* 10.09:1 */
+  --reviewed: #7c3aed;       --reviewed-tint: #f1e9fe;  --reviewed-ink: #6a27d4;  /*  6.25:1 */
+  --signs: #f59e0b;          --signs-tint: #fdf0dc;     --signs-ink: #8a5a00;     /*  5.27:1 */
+  --listed: #0e7490;         --listed-tint: #dff1f5;    --listed-ink: #0b5f78;    /*  6.17:1 */
+  --nothing: #94a3b8;        --nothing-tint: #eef1f5;   --nothing-ink: #53647c;   /*  5.32:1 */
+
+  --selection-bg: #c4edff;
+  --selection-fg: #081b38;
+  --scrollbar-thumb: #c3cddb;
+  --scrollbar-track: #eef2f7;
 }
 
+/* The dark theme is composed, not inverted. Navy is both the ink of the light
+   theme and the ground of this one, which is what keeps them one product. */
 :root.dark {
-  --bg: #0f0f1a;
-  --surface: #1a1a2e;
-  --surface-alt: #242442;
-  --border-color: #2d2d4a;
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  --bg: #081b38;
+  --surface: #0f2a4f;
+  --surface-alt: #0a2140;
+
+  --text-primary: #f1f5f9;   /* 13.09:1 on surface */
+  --text-secondary: #a9b8cc; /*  7.11:1 on surface */
+  --text-muted: #8fa2ba;     /*  5.49:1 on surface */
+
+  --border-color: #1e3a5f;
+  --border-strong: #5181b8;  /* 3.54:1 on surface */
+
+  --primary: #f1f5f9;
+  --mid-navy: #0f2a4f;
+  --accent: #4d94ff;         /* 4.78:1 on surface. #0a57cc is 2.2:1 here. */
+  --accent-bright: #60d4ff;
+  --beam: #60d4ff;
+
+  --danger: #ff8d85;
+
+  --named-tint: #15294f;     --named-ink: #a8c3ff;     /* 8.15:1 */
+  --reviewed-tint: #271a45;  --reviewed-ink: #cdb4ff;  /* 8.76:1 */
+  --signs-tint: #3a2a10;     --signs-ink: #fbbf24;     /* 8.28:1 */
+  --listed-tint: #0c2e38;    --listed-ink: #5fd8ec;    /* 8.55:1 */
+  --nothing-tint: #16263d;   --nothing-ink: #a9b8cc;   /* 7.55:1 */
+
+  --selection-bg: #16437a;
+  --selection-fg: #f1f5f9;
+  --scrollbar-thumb: #2b4a75;
+  --scrollbar-track: #0a2140;
+
+  --shadow-raised: 0 1px 2px rgb(0 0 0 / 0.4), 0 4px 12px rgb(0 0 0 / 0.4);
+  --shadow-floating: 0 8px 24px rgb(0 0 0 / 0.5), 0 2px 6px rgb(0 0 0 / 0.4);
+  --shadow-sticky: 0 -2px 16px rgb(0 0 0 / 0.45);
 }
 
 body {
   background-color: var(--bg);
   color: var(--text-primary);
-  font-family: var(--font-inter), sans-serif;
+  font-family: var(--font-inter), system-ui, sans-serif;
+}
+
+/* The parts we did not draw still carry the design. Left alone, every one of
+   these ships a browser default that belongs to no design system. */
+::selection {
+  background-color: var(--selection-bg);
+  color: var(--selection-fg);
+}
+
+:root {
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  accent-color: var(--accent-bright);
+  color-scheme: light;
+}
+:root.dark { color-scheme: dark; }
+
+*::-webkit-scrollbar { width: 12px; height: 12px; }
+*::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+*::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border: 3px solid var(--scrollbar-track);
+  border-radius: 9999px;
+}
+
+/* One focus treatment everywhere, so a keyboard user never loses their place. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+input, textarea { caret-color: var(--accent-bright); }
+
+/* Links in prose declare themselves. Offset keeps descenders legible. */
+.prose-link {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+.prose-link:hover { text-decoration-thickness: 2px; }
+
+/* Headings balance, body copy avoids one-word last lines. Both degrade to the
+   browser default where unsupported. */
+:where(h1, h2, h3, h4, blockquote) { text-wrap: balance; }
+:where(p, li, dd) { text-wrap: pretty; }
+
+/* Data aligns in a column: a date under a date, a digit under a digit. */
+.tabular { font-variant-numeric: tabular-nums slashed-zero; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 @utility scrollbar-hide {

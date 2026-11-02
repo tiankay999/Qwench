@@ -14,7 +14,7 @@ export function ChannelsCTA() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h2 className="text-xl font-bold text-white mb-1">Check from where you already chat</h2>
-          <p className="text-sm text-gray-300 max-w-md">
+          <p className="text-sm text-[#A9B8CC] max-w-md">
             Forward a message, send a screenshot, or type a name. The same records, the
             same wording — we don&apos;t store your number or your messages.
           </p>
@@ -25,7 +25,7 @@ export function ChannelsCTA() {
               href={WHATSAPP_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-lg bg-[#25D366] px-5 py-3 text-sm font-bold text-white hover:brightness-110 transition-all min-h-[44px]"
+              className="inline-flex items-center gap-2 rounded-lg bg-[#25D366] px-5 py-3 text-sm font-bold text-white hover:bg-[#1EBE5A] transition-colors min-h-[44px]"
             >
               <MessageCircle className="w-4 h-4" aria-hidden />
               WhatsApp
@@ -36,7 +36,7 @@ export function ChannelsCTA() {
               href={TELEGRAM_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-lg bg-[#2AABEE] px-5 py-3 text-sm font-bold text-white hover:brightness-110 transition-all min-h-[44px]"
+              className="inline-flex items-center gap-2 rounded-lg bg-[#2AABEE] px-5 py-3 text-sm font-bold text-white hover:bg-[#1E97D6] transition-colors min-h-[44px]"
             >
               <Send className="w-4 h-4" aria-hidden />
               Telegram
@@ -44,7 +44,7 @@ export function ChannelsCTA() {
           )}
           <Link
             href="/search"
-            className="inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-3 text-sm font-bold text-primary hover:brightness-110 transition-all min-h-[44px]"
+            className="inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-3 text-sm font-bold text-white hover:bg-accent-bright transition-colors min-h-[44px]"
           >
             <Search className="w-4 h-4" aria-hidden />
             Check here

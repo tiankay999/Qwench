@@ -6,13 +6,18 @@ import { useState } from "react";
 import { cn } from "@/lib/cn";
 
 /**
- * The paste box. Anything goes in: a name, a MoMo number, a wallet, a link, or
- * a whole forwarded message. Working out which is which is the API's job, so
- * nothing here tries to classify what was typed.
+ * The check field. Anything goes in: a name, a MoMo number, a wallet, a link,
+ * or a whole forwarded message. Working out which is which is the API's job,
+ * so nothing here tries to classify what was typed.
+ *
+ * It is the one control most people will ever use, which is why it is 60px
+ * tall and why the input is 18px. Under 16px, iOS Safari zooms the viewport
+ * on focus — on a mid-range Android or an iPhone held mid-payment, that turns
+ * the primary action of the whole site into a fight with the browser.
  */
 export function SearchBar({
-  placeholder = "Search any company, token, or paste a link...",
-  buttonText = "CHECK",
+  placeholder = "Name, number, link or wallet address",
+  buttonText = "Check",
   initialValue = "",
   autoFocus = false,
   className,
@@ -36,25 +41,37 @@ export function SearchBar({
     <form
       onSubmit={submit}
       className={cn(
-        "flex items-center w-full max-w-2xl rounded-full border border-border bg-surface shadow-lg overflow-hidden",
+        "flex w-full max-w-2xl items-center gap-3 rounded-[14px] border border-border-strong bg-surface py-2 pl-5 pr-2",
+        "min-h-[60px] transition-[border-color,box-shadow] duration-150 ease-out-expo",
+        "focus-within:border-accent-bright focus-within:shadow-raised",
         className,
       )}
     >
-      <div className="flex items-center flex-1 px-4 gap-3 min-w-0">
-        <Search className="w-5 h-5 text-text-muted flex-shrink-0" aria-hidden />
-        <input
-          type="text"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder={placeholder}
-          autoFocus={autoFocus}
-          className="w-full py-3.5 bg-transparent text-text-primary placeholder:text-text-muted outline-none text-sm"
-          aria-label="What do you want to check?"
-        />
-      </div>
+      <Search
+        className="size-5 shrink-0 text-text-muted"
+        strokeWidth={1.75}
+        aria-hidden
+      />
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder={placeholder}
+        autoFocus={autoFocus}
+        enterKeyHint="search"
+        autoComplete="off"
+        autoCorrect="off"
+        spellCheck={false}
+        /* The ring lives on the form, so the input suppresses its own. */
+        className="w-full min-w-0 bg-transparent text-lg text-text-primary outline-none placeholder:text-text-muted focus-visible:outline-none"
+        aria-label="What do you want to check?"
+      />
       <button
         type="submit"
-        className="bg-accent text-primary font-bold text-sm px-6 py-3.5 hover:brightness-110 transition-all cursor-pointer min-h-[44px] flex-shrink-0"
+        className={cn(
+          "shrink-0 cursor-pointer rounded-[10px] bg-accent px-6 py-3 text-base font-semibold text-white",
+          "min-h-[44px] transition-colors duration-150 ease-out-expo hover:bg-accent-bright",
+        )}
       >
         {buttonText}
       </button>

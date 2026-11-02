@@ -188,17 +188,30 @@ export const submitAppeal = (input: AppealInput) =>
  * anything is — `warning` means a regulator published a notice, and `listed`
  * means a name appears on a register. Neither is a rating.
  */
-export const STATE: Record<
-  LegalState,
-  { label: string; icon: string; tone: "warning" | "listed" | "provisional" | "neutral" }
-> = {
-  named_in_notice: { label: "Named in a notice", icon: "⚠️", tone: "warning" },
-  licensed: { label: "On SEC Ghana's licensed list", icon: "✅", tone: "listed" },
-  sandbox: { label: "In the regulatory sandbox", icon: "🔶", tone: "provisional" },
-  registered: { label: "In records — not licensed", icon: "ℹ️", tone: "neutral" },
-  authority: { label: "Regulator or public body", icon: "🏛️", tone: "listed" },
-  no_record: { label: "No record found", icon: "🔍", tone: "neutral" },
-  foreign_context: { label: "Alert from a regulator abroad", icon: "🌍", tone: "provisional" },
+/**
+ * The five status roles. They are categorical, never a scale: `named` is not
+ * "worse" than `listed`, it is a different kind of fact. Nothing may sort,
+ * rank or ramp them, because a sequence is a score. See DESIGN.md, "The Flat
+ * Spectrum Rule".
+ */
+export type StatusTone = "named" | "reviewed" | "signs" | "listed" | "nothing";
+
+/**
+ * What each legal state is called, and which role carries it.
+ *
+ * There are no icons in here any more. The map used to ship emoji — and a ✅
+ * on `licensed`, which told the reader a firm was approved, in a product whose
+ * second rule is that it never says "safe" or "verified". Marks are now drawn,
+ * and they live in StateBadge where they can be sized and stroked.
+ */
+export const STATE: Record<LegalState, { label: string; tone: StatusTone }> = {
+  named_in_notice: { label: "Named in a notice", tone: "named" },
+  licensed: { label: "On SEC Ghana's licensed list", tone: "listed" },
+  sandbox: { label: "In the regulatory sandbox", tone: "listed" },
+  registered: { label: "In records — not licensed", tone: "listed" },
+  authority: { label: "Regulator or public body", tone: "listed" },
+  no_record: { label: "No record found", tone: "nothing" },
+  foreign_context: { label: "Alert from a regulator abroad", tone: "signs" },
 };
 
 export const stateOf = (state: string) => STATE[state as LegalState] ?? STATE.no_record;

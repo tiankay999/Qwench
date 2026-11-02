@@ -50,7 +50,14 @@ function visibleText(html) {
 const BANNED = [
   ["a risk score", /\brisk score\b|\b\d(?:\.\d)?\s*\/\s*10\b|\bout of 10\b/i],
   ["a traffic-light verdict", /\b(CRITICAL|HIGH|MEDIUM|LOW)\s+RISK\b/i],
-  ["advice", /\bwe recommend\b|\byou should (?:invest|pay|avoid)\b|\bexercise caution\b/i],
+  [
+    "advice",
+    /\bwe recommend\b|\byou should (?:invest|pay|avoid)\b|\bexercise caution\b|\bverify (?:before|first)\b|\bprotect your (?:money|funds|cash)\b|\bbefore you (?:invest|put in)\b/i,
+  ],
+  // A tick, a shield or a warning triangle as TEXT is a verdict drawn in
+  // Unicode. The licensed state used to ship a ✅, which told every reader a
+  // firm was approved — the exact claim Rule 2 forbids. Marks are drawn now.
+  ["an emoji verdict", /[✅❌⚠️\u{1F6E1}\u{1F534}\u{1F7E2}\u{1F7E1}\u{1F536}\u{1F50D}\u{1F3DB}\u{1F30D}]/u],
   ["calling something a scam", /\bscam(?:s|med|mer|mers)?\b/i],
   ["calling something fraudulent", /\bfraudulent\b/i],
   ["calling something verified", /\bverified\b/i],
@@ -148,6 +155,49 @@ ok("about: says what Qwench won't do", /never give a score/i.test(about));
 const community = bodies.get("/community").text;
 ok("community: explains the review pipeline", /second person/i.test(community));
 ok("community: no invented report feed", !/upvote/i.test(community));
+
+/* ---- the stylesheet, not just the words -------------------------------
+   Everything above reads text. The traffic-light StateBadge passed 243 word
+   checks while rendering a green tick on a red-amber-green scale, because no
+   test had ever looked at a colour. These do. */
+console.log("\n### stylesheet");
+
+const homeHtml = bodies.get("/").html;
+const hrefs = [
+  ...homeHtml.matchAll(/<link[^>]+rel="stylesheet"[^>]+href="([^"]+)"/g),
+].map((m) => m[1]);
+ok("serves a stylesheet", hrefs.length > 0, `found ${hrefs.length}`);
+
+let css = "";
+for (const href of hrefs) {
+  const res = await fetch(new URL(href, BASE));
+  if (res.ok) css += await res.text();
+}
+ok("stylesheet is readable", css.length > 1000, `${css.length} chars`);
+
+// Rule 2: the product may never say "safe". It should not be able to think it
+// either — there must be no token by that name to reach for.
+ok("no --safe token exists", !/--safe\b/.test(css));
+ok("no --danger used as a status", !/--(?:safe|risk|verdict)-/.test(css));
+
+// Approval green, in any of the shades the prototype shipped or a designer
+// might reach for. "On a regulator's list" must never be dressed as a tick.
+const GREENS = ["#2ecc71", "#00d4aa", "#22c55e", "#16a34a", "#10b981", "#4ade80"];
+for (const g of GREENS) {
+  ok(`no approval green ${g}`, !css.toLowerCase().includes(g));
+}
+
+// The five status roles must all be present, or a state is being rendered in
+// something that is not its own colour.
+for (const role of ["named", "reviewed", "signs", "listed", "nothing"]) {
+  ok(`status role --${role} defined`, new RegExp(`--${role}-tint`).test(css));
+}
+
+// All three brand faces must actually load. The previous build shipped Inter
+// alone and the detector reported "inter (100% of text)".
+for (const face of ["inter", "jakarta", "roboto-mono"]) {
+  ok(`--font-${face} wired`, new RegExp(`--font-${face}`).test(css));
+}
 
 console.log(
   `\n${fail === 0 ? "✅ ALL PASS" : "❌ FAILURES"} — ${pass} passed, ${fail} failed`,

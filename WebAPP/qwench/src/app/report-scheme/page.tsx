@@ -82,9 +82,9 @@ function ReportForm() {
 
   if (done) {
     return (
-      <div className="rounded-xl border border-safe/30 bg-safe/5 p-6">
+      <div className="rounded-xl border border-listed/30 bg-listed/5 p-6">
         <div className="flex items-center gap-2 mb-3">
-          <CheckCircle2 className="w-5 h-5 text-safe" aria-hidden />
+          <CheckCircle2 className="w-5 h-5 text-listed" aria-hidden />
           <h2 className="font-bold text-text-primary">Report received</h2>
         </div>
         <p className="text-sm text-text-secondary">{done}</p>
@@ -105,7 +105,7 @@ function ReportForm() {
         <div className="flex flex-wrap gap-3 mt-5">
           <Link
             href="/"
-            className="inline-flex items-center justify-center rounded-lg bg-accent px-5 py-2.5 text-sm font-semibold text-primary hover:brightness-110 transition-all min-h-[44px]"
+            className="inline-flex items-center justify-center rounded-lg bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:bg-accent-bright transition-colors min-h-[44px]"
           >
             Back to home
           </Link>

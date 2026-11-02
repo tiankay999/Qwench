@@ -14,6 +14,12 @@ Where older README text or `/api` behaviour conflicts with it, this folder wins.
 | [05-data-lead-workplan.md](05-data-lead-workplan.md) | Reviewed records and demo data | Data lead |
 | [06-lean-canvas.md](06-lean-canvas.md) | One-page lean canvas | Pitch |
 | [07-qa-and-sources.md](07-qa-and-sources.md) | Panel answers, and the source of every figure | Pitch and QA |
+| [../../PRODUCT.md](../../PRODUCT.md) | Durable product truth: users, purpose, positioning, brand commitments | Anyone designing a surface |
+| [../../DESIGN.md](../../DESIGN.md) | The design system: palette, type, spacing, status system, components | Web app, console, pitch design |
+
+`PRODUCT.md` and `DESIGN.md` sit at the repo root because the `impeccable` skill in
+`.claude/skills/` resolves them there. They carry no rules of their own: where either
+conflicts with this file, this file wins.
 
 ## Who owns what
 
@@ -107,6 +113,7 @@ Backend progress and open bugs are in [03-backend-workplan.md](03-backend-workpl
 | The bot still depends on `/api` | Move it, then retire `/api` with Dre's approval |
 | `/api/check` no longer returns scores, but other `/api` routes and the old scoring code remain | Must not be shown or demoed |
 | ~~The web app uses mock data, with risk levels and "scam" wording~~ | Done. `mock-data.ts` is gone, every page renders `report` from `/v1/public`, and a scraper asserts the banned words are absent from the rendered HTML of all 14 public pages |
+| ~~`StateBadge` rendered a traffic light: red `named_in_notice`, amber `sandbox`, green `licensed`, plus a ✅ on the licensed state~~ | Done. Five categorical status roles that cannot be ranked by eye, drawn Lucide marks, and `--safe` deleted from the stylesheet. The compliance scraper now reads the served CSS and fails on any approval green or emoji verdict — it passed 243/243 while the traffic light was live, because it only ever read words |
 | The web app has no public endpoint for a list of entities | `/report/[slug]` turns a slug back into a name and runs `POST /v1/public/check`, and the home page's strip is a fixed list of names each checked live. A `GET /v1/public/entities` would let both show the register itself. Backend owner's call |
 | `did_you_mean` can never fire, on any channel | `closeName()` filters on `Entity.allowFuzzy`, but `seed.js` only ever sets `allowFuzzy` on the **Identifier** (`seed.js:117`). In the current database 214 of 221 name identifiers have it, and **0 of 87 entities do**, so `reviewedEntities({ fuzzyOnly: true })` always returns `[]`. The look-alike branch in the bots and the web app is unreachable. Backend owner's call: set it on the entity in the seed, or point `closeName` at the identifier the way the deprecated `checkService.js:201` did |
 | The web app has no public endpoint for reviewed, published records | `/community` therefore explains the review pipeline instead of showing a feed. The institutional `/v1/feed` needs a key, so a browser can't read it. A public, reviewed-only feed would give the page real content |

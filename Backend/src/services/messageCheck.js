@@ -6,6 +6,7 @@ import { extractFromImage, extractFromUrl } from "./aiExtractor.js";
 import { domainAge as lookUpDomainAge } from "./domainAge.js";
 import { evaluate, reviewedEntities } from "./evidenceEngine.js";
 import { findLookalikesInText, findNamesInText } from "./nameVerifier.js";
+import { frozenFor } from "./pageSeen.js";
 import { scrapeUrl } from "./urlAnalyzer.js";
 
 /**
@@ -24,13 +25,14 @@ const MAX_READ_TEXT = 20_000;
 const PAYMENT_TYPES = new Set(["momo_number", "bank_account", "wallet"]);
 
 const SHORTENERS = new Set(["bit.ly", "tinyurl.com", "cutt.ly", "rb.gy", "is.gd", "shorturl.at", "t.co", "goo.gl", "ow.ly", "wa.me"]);
-const WATCHED_ENDINGS = [".tk", ".ml", ".ga", ".cf", ".gq", ".top", ".xyz", ".click", ".link"];
+// Free endings only. Paid ones such as .xyz are widely used, and prove nothing.
+const WATCHED_ENDINGS = [".tk", ".ml", ".ga", ".cf", ".gq"];
 const NEW_SITE_DAYS = 90;
 const MAX_AGE_LOOKUPS = 3;
 const DAY_MS = 86_400_000;
 
 /** Plain facts about the links, in fixed wording. They change no status or tier. */
-async function linkFacts({ domains, pages, ageOf }) {
+async function linkFacts({ domains, pages, ageOf, pageFrozen }) {
   const facts = [];
   const add = (fact) => {
     if (!facts.includes(fact)) facts.push(fact);
@@ -45,6 +47,15 @@ async function linkFacts({ domains, pages, ageOf }) {
     if (page.isHttps === false) add(linkFact("noHttps"));
     if (page.hasLoginForm) add(linkFact("login"));
     if (page.hasPaymentForm) add(linkFact("payment"));
+
+    const signals = page.pageSignals || {};
+    for (const signal of ["deadControls", "mismatchedLink", "oddLink", "chatLinks", "sameTimes"]) {
+      if (signals[signal]) add(linkFact(signal));
+    }
+    if (signals.timeSignature && page.finalUrl) {
+      const hours = await Promise.resolve(pageFrozen(page.finalUrl, signals.timeSignature)).catch(() => null);
+      if (hours) add(linkFact("frozenTimes", { hours, unit: hours === 1 ? "hour" : "hours" }));
+    }
   }
 
   const landing = [...new Set([...domains.filter((d) => !SHORTENERS.has(d)), ...pages.map((p) => (p.finalUrl ? normalizeDomain(p.finalUrl) : "")).filter(Boolean)])];
@@ -119,6 +130,7 @@ async function readLinks(links, { scrape, readPage }, notes) {
         isHttps: page.isHttps,
         hasLoginForm: page.hasLoginForm,
         hasPaymentForm: page.hasPaymentForm,
+        pageSignals: page.pageSignals,
       };
     })
   );
@@ -132,6 +144,7 @@ export async function checkMessage(input, deps = {}) {
   const readPage = deps.readPage || extractFromUrl;
   const readImage = deps.readImage || extractFromImage;
   const ageOf = deps.domainAge || lookUpDomainAge;
+  const pageFrozen = deps.pageFrozen || frozenFor;
 
   const text = cleanText(input.text);
   const notes = [];
@@ -217,7 +230,7 @@ export async function checkMessage(input, deps = {}) {
   if (pages.some((p) => p.hiddenAtAi)) result.report.warning_signs.push(HIDDEN_AI_TEXT_SIGN);
 
   const directDomain = recipient && ["domain", "url"].includes(type) ? [normalizeDomain(recipient)] : [];
-  result.report.link_facts = await linkFacts({ domains: [...new Set([...found.domains, ...directDomain])].filter(Boolean), pages, ageOf });
+  result.report.link_facts = await linkFacts({ domains: [...new Set([...found.domains, ...directDomain])].filter(Boolean), pages, ageOf, pageFrozen });
 
   // Set again now every rule-based finding is in. Signs AI spotted don't count.
   result.report.evidence_level = evidenceLevel({

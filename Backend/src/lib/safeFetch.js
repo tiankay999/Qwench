@@ -15,7 +15,7 @@ import net from "node:net";
 const DEFAULTS = {
   timeoutMs: 10_000,
   maxBytes: 5 * 1024 * 1024,
-  maxRedirects: 3,
+  maxRedirects: 5,
   allowedPorts: [80, 443],
 };
 

@@ -9,8 +9,8 @@ import { DomainAge } from "../models/index.js";
  * unknown or failed just means nothing is said.
  *
  * .gh domains: only the registry answers, at whois.nic.gh. Its terms forbid
- * high-volume automated use, so this is off unless GH_WHOIS_LOOKUP=true, capped per
- * hour, cached, and only ever runs for a link someone sent.
+ * high-volume automated use, so this is capped per hour, cached, and only ever runs for
+ * a link someone sent. GH_WHOIS_LOOKUP=false switches it off.
  * Everything else: RDAP, the public registration lookup.
  */
 
@@ -89,7 +89,7 @@ export async function domainAge(domain, { rdap = rdapRegisteredOn, whois = whois
   if (!name) return null;
 
   const isGh = name.endsWith(".gh");
-  if (isGh && process.env.GH_WHOIS_LOOKUP !== "true") return null;
+  if (isGh && process.env.GH_WHOIS_LOOKUP === "false") return null;
 
   const valueHash = hashIdentifier("domain", name);
   const cached = await DomainAge.findOne({ valueHash }).lean();

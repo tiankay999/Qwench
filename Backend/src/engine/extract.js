@@ -102,6 +102,7 @@ const SIGNS = [
   [/\bcomplete tasks?\b|\bwatch videos?\b|\bearn per task\b/i, "The message offers pay for simple tasks."],
   [/\bsec[- ](?:approved|licensed|registered)\b|\bapproved by (?:the )?sec\b/i, "The message claims approval from a regulator."],
   [/\btell (?:nobody|no one|no-one)\b|\bdon'?t tell (?:anyone|anybody)\b|\bdo not tell (?:anyone|anybody)\b|\bkeep this (?:private|secret|to yourself)\b|\bbetween us\b/i, "The message asks you to keep this offer private."],
+  [/\bfree gifts?\b|\b(?:sign[- ]?up|welcome|joining|referral|registration) bonus\b|\bclaim (?:your|a|the) (?:\w+ )?(?:bonus|gift|reward|prize)\b|\byou(?:'ve| have) won\b|\bfree (?:airtime|data|cash|money)\b/i, "The message offers bonuses or free gifts."],
   [/\bpersonal (?:account|momo|mobile money|wallet)\b/i, "The message asks you to pay into a personal account."],
   [/\bgift ?cards?\b|\bpay(?:ment)? (?:in|with|by) (?:usdt|btc|bitcoin|crypto)\b|\b(?:usdt|btc|bitcoin|crypto) only\b|\bsend (?:usdt|btc|bitcoin|crypto)\b/i, "The message asks for payment by crypto, gift card or a similar method."],
 ];
@@ -130,6 +131,7 @@ export const AI_RED_FLAGS = {
   task_earnings: { sign: "The message offers pay for simple tasks." },
   regulator_claim: { sign: "The message claims approval from a regulator." },
   secrecy: { sign: "The message asks you to keep this offer private." },
+  bonus_gift: { sign: "The message offers bonuses or free gifts." },
   pay_personal_account: { sign: "The message asks you to pay into a personal account.", quoteShows: /\b(?:personal|my|own|private|agent'?s)\b/i },
   unusual_payment: { sign: "The message asks for payment by crypto, gift card or a similar method.", quoteShows: /crypto|bitcoin|\bbtc\b|usdt|\beth\b|gift ?card|voucher|wallet|western union/i },
   famous_endorsement: { sign: "The message uses a well-known person's name to promote the offer." },

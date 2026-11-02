@@ -90,7 +90,7 @@ Reply:
 
 `evidence_level` is the headline answer. It grades how much evidence there is, never the scheme, and is set by fixed rules. Show it first, and always show `disclaimer` with it. Signs AI spotted don't count toward it.
 
-`link_facts` are plain facts about any links: where a link really leads, shorteners, website endings, no HTTPS, password and payment forms, and sites under 90 days old. A link is also checked against records at the address it lands on. An unknown age says nothing. None of these change `state` or `tier`.
+`link_facts` are plain facts about any links: where a link really leads, shorteners, free website endings, no HTTPS, password and payment forms, sites under 90 days old, links and buttons that go nowhere, links that aren't what they show, and comment times that all match or never change. A link is also checked against records at the address it lands on. An unknown age says nothing. None of these change `state` or `tier`.
 
 `also_checked` lists anything else found in the message, one line each. The reply leads with the most significant result, and an unknown payment number outranks a licensed name mentioned beside it.
 

@@ -68,10 +68,16 @@ test("a shortener is noted even if the link won't open", async () => {
   assert.ok(list.some((f) => /shortener/.test(f)));
 });
 
-for (const ending of [".tk", ".xyz", ".top"]) {
+for (const ending of [".tk", ".ml", ".ga", ".cf", ".gq"]) {
   test(`a site ending ${ending} is noted`, async () => {
     const list = await facts({ urls: [`https://offer${ending}`] }, { scrape: page() });
     assert.ok(list.some((f) => f.includes(`ends in ${ending}`)));
+  });
+}
+
+for (const ending of [".xyz", ".top", ".click", ".link", ".com", ".online"]) {
+  test(`a site ending ${ending} isn't held against it`, async () => {
+    assert.deepEqual(await facts({ urls: [`https://offer${ending}`] }, { scrape: page() }), []);
   });
 }
 
@@ -180,20 +186,20 @@ test("other domains use RDAP, on the registrable domain", async () => {
   assert.equal(calls.whois, undefined);
 });
 
-test(".gh domains stay off by default", async () => {
-  delete process.env.GH_WHOIS_LOOKUP;
+test(".gh lookups can be switched off", async () => {
+  process.env.GH_WHOIS_LOOKUP = "false";
   const calls = {};
   assert.equal(await domainAge("shop.com.gh", lookups(WHEN, calls)), null);
   assert.equal(calls.whois, undefined);
   assert.equal(calls.rdap, undefined);
 });
 
-test(".gh domains use the registry when switched on", async () => {
-  process.env.GH_WHOIS_LOOKUP = "true";
+test(".gh domains use the registry by default", async () => {
+  delete process.env.GH_WHOIS_LOOKUP;
   const calls = {};
   assert.deepEqual(await domainAge("shop.com.gh", lookups(WHEN, calls)), WHEN);
   assert.equal(calls.lastWhois, "shop.com.gh");
-  delete process.env.GH_WHOIS_LOOKUP;
+  process.env.GH_WHOIS_LOOKUP = "false";
 });
 
 test("a date is cached, as a hash with no domain name", async () => {
@@ -233,7 +239,7 @@ test("the .gh lookups stop at the hourly cap", async () => {
   const calls = {};
   for (const d of ["a1.com.gh", "a2.com.gh", "a3.com.gh", "a4.com.gh"]) await domainAge(d, lookups(WHEN, calls));
   assert.ok(calls.whois <= 2, String(calls.whois));
-  delete process.env.GH_WHOIS_LOOKUP;
+  process.env.GH_WHOIS_LOOKUP = "false";
   delete process.env.GH_WHOIS_MAX_PER_HOUR;
 });
 

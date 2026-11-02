@@ -291,9 +291,20 @@ for (const [text, sign] of [
   ["Pay in USDT only", "The message asks for payment by crypto, gift card or a similar method."],
   ["Buy a gift card and send the code", "The message asks for payment by crypto, gift card or a similar method."],
   ["Send bitcoin to this wallet", "The message asks for payment by crypto, gift card or a similar method."],
+  ["Claim your bonus today", "The message offers bonuses or free gifts."],
+  ["Get a free gift when you join", "The message offers bonuses or free gifts."],
+  ["GHS 50 sign-up bonus", "The message offers bonuses or free gifts."],
+  ["You have won free airtime", "The message offers bonuses or free gifts."],
+  ["Welcome bonus for new members", "The message offers bonuses or free gifts."],
 ]) {
   test(`rules catch: "${text}"`, () => assert.ok(warningSigns(text).includes(sign)));
 }
+
+test("rules leave ordinary wording about bonuses alone", () => {
+  for (const text of ["My annual bonus was paid", "A gift for my mother", "Free delivery on Saturday"]) {
+    assert.ok(!warningSigns(text).includes("The message offers bonuses or free gifts."), text);
+  }
+});
 
 for (const text of ["Pay MoMo 0240000080", "We keep your data private", "Tell your friends", "Our personal service", "A bitcoin price update"]) {
   test(`rules ignore: "${text}"`, () => {

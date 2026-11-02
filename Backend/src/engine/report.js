@@ -41,6 +41,12 @@ export const LINK_FACTS = {
   noHttps: "The page doesn't use a secure connection (HTTPS).",
   login: "The page asks for a password.",
   payment: "The page has a payment form.",
+  deadControls: "Most of the page's links and buttons don't go anywhere, even though they look clickable.",
+  mismatchedLink: "A link on the page shows one address but goes to another.",
+  oddLink: "A link on the page uses an unusual address, such as a bare number or a look-alike character set.",
+  chatLinks: "Most of the page's links go to a chat app such as WhatsApp or Telegram.",
+  sameTimes: "The page's comments all show the same time.",
+  frozenTimes: "The page's comments still show the same times as {hours} {unit} ago, though times like \"2 minutes ago\" normally change.",
   newSite: "The website {domain} was registered {days} {unit} ago, on {date}. A new website isn't proof of anything on its own.",
 };
 

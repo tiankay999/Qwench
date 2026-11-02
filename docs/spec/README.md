@@ -91,11 +91,8 @@ Backend progress and open bugs are in [03-backend-workplan.md](03-backend-workpl
 | Gap | What the spec needs |
 |---|---|
 | `/v1/public/check` takes `recipient` and `type` only | Also `text`, `urls` and an image, because the bots and paste box send whole messages |
-| Public replies have no report | `state_sentence`, `sources`, `return_check`, `warning_signs`, `questions_to_ask`, `footer` |
 | `did_you_mean` is in replies, but the bot still calls `/api/verify-name` | Move the bot over, so `/api/verify-name` can retire |
 | No `/v1/console` routes | Login, lookup, payment check, feed, keys, review queue |
-| README uses `internal_only` | Confirm against the `internal_review` and `allowed_use` table in the spec, then use one name |
-| No `is_demo` in responses | Add it wherever demo data can be returned |
 | `reviewRecords.js` approves records in bulk | Don't use it for real data. Every record needs a real second review. Migrated records have no quote, so it can't activate them |
 | The bot's "On file, awaiting review" message | Remove it from `messages.js`. Pending records are no longer returned, so `pending_records` is gone |
 | Feed may include partner data | Confirm that partner numbers never appear in it |

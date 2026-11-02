@@ -41,11 +41,12 @@ checked without a key, so list that as not done. Everything must work with no AI
 | 1 Data model | Done | `4158cef` |
 | Merge of `main` with the evidence engine | Done | `2d8286c` |
 | 2 Data import | Done | `81efb43` |
-| 3 onwards | Not started | |
+| 3 Evidence engine | Done | `8cef2b8` |
+| 4 onwards | Not started | |
 
 Known bugs from the review that are still open, by phase:
-- **Phase 3:** foreign alerts at tier 1, tier 1 suggested action ignores new payee and amount, tier 2 can return `warn`, `internal_only` instead of `internal_review`, expired records still counted, unreviewed signals reaching tier 4, partner numbers not found by a check, entities with only pending records returned as `match: true`, tier 3 not counting independent sources, `/api/check` returning `normalized` and `value_hash`, `did_you_mean` suggesting names and statuses from the unreviewed `sec-ghana.json`, demo results missing `is_demo`.
-- **Phase 4:** `isPublicHttpUrl`.
+- **Phase 4:** `isPublicHttpUrl`; `text`, `urls` and image input on `/v1/public/check`, including matching a message against known names; raw URLs in `aiExtractor.js` and `urlAnalyzer.js` logs.
+- **Not built:** domain age, because nothing is cached yet.
 
 ## Rules that must never break
 1. No scores, verdicts or advice anywhere in `/v1`.
@@ -202,6 +203,14 @@ If `src/data/reviewed/` is empty, use test fixtures for tests and tell Dre that 
 10. **Log:** write a `Check` row with hashes only, without blocking the response.
 
 Don't import `riskEngine.js`, `coingecko.js` or `goplus.js` into `/v1`.
+
+**How the rules were applied:**
+- Only tier 1 and legal states reach a public result. Tiers 2 to 4 are for institutions, so a public report or partner record can never change a public reply.
+- A close name is only ever `did_you_mean`, with the entity name and no status or score. This includes dressed-up versions of notice names, such as "Menzg0ld Premium".
+- A regulator (`kind: authority`) answers `authority` from its entry, even before its record is reviewed, because that is not a claim against anyone.
+- A verified merchant's own number returns `registered`, with `merchant_claim`.
+- A number advertised under a registered business opens an impersonation `Case`. Results change only once a person records an `impersonates` relation.
+- `return_check` is `{ stated, annual_percent, note }`.
 
 **Tests:**
 - A banned-word test runs across every template.

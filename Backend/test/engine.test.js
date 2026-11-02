@@ -405,14 +405,85 @@ test("an unregistered business gets no claim and no review", async () => {
   assert.equal(await Case.countDocuments(), 0);
 });
 
-test("a reviewed impersonation is tier 2, for internal review", async () => {
+const reviewedBy = { capturedBy: "capturer", reviewedBy: "reviewer", status: "active" };
+
+test("a reviewed impersonation is tier 2, and institutions may warn customers", async () => {
   const real = await registeredMerchant();
   const fake = await makeEntity("Fixture Fake Shop", { domain: "fake-shop.test" });
-  await Relation.create({ fromEntity: fake._id, toEntity: real._id, type: "impersonates", status: "active" });
+  await Relation.create({ fromEntity: fake._id, toEntity: real._id, type: "impersonates", ...reviewedBy });
   const r = await byName(fake.name);
   assert.equal(r.tier, 2);
   assert.deepEqual(r.reason_codes, ["ADVERTISED_AS_BUSINESS_NOT_REGISTERED"]);
-  assert.equal(r.allowed_use, "internal_review");
+  assert.equal(r.allowed_use, "customer_warning");
+  assert.equal(r.suggested_action, "warn");
+});
+
+test("a reviewed impersonation is shown publicly, naming the business", async () => {
+  const real = await registeredMerchant();
+  const fake = await makeEntity("Fixture Fake Shop", { domain: "fake-shop.test" });
+  const relationSource = await Source.create({ publisher: "Fixture Shop Ltd", type: "press_release", title: "Fixture confirmation", url: "https://example.test/c", publishedOn: new Date("2026-08-01") });
+  await Relation.create({ fromEntity: fake._id, toEntity: real._id, type: "impersonates", sourceId: relationSource._id, ...reviewedBy });
+
+  const body = await publicCheck({ recipient: "fake-shop.test", type: "domain" });
+  assert.equal(body.match, true);
+  assert.equal(body.entity, "Fixture Fake Shop");
+  assert.equal(body.state, "no_record");
+  assert.equal(body.tier, 2);
+  assert.deepEqual(body.reason_codes, ["ADVERTISED_AS_BUSINESS_NOT_REGISTERED"]);
+  assert.match(body.report.state_sentence, /Fixture Shop Ltd/);
+  assert.doesNotMatch(body.report.state_sentence, /No record found/);
+  assert.equal(body.report.sources[0].url, "https://example.test/c");
+});
+
+test("the same public check doesn't reveal partner data alongside it", async () => {
+  const real = await registeredMerchant();
+  const fake = await makeEntity("Fixture Fake Shop", { domain: "fake-shop.test" });
+  await Relation.create({ fromEntity: fake._id, toEntity: real._id, type: "impersonates", ...reviewedBy });
+  await Contribution.create({ orgId: (await org())._id, schemeName: fake.name, identifiers: [{ type: "domain", valueHash: hashIdentifier("domain", "fake-shop.test") }], reviewStatus: "reviewed" });
+  const body = await publicCheck({ recipient: "fake-shop.test", type: "domain" });
+  assert.deepEqual(body.reason_codes, ["ADVERTISED_AS_BUSINESS_NOT_REGISTERED"]);
+});
+
+test("an impersonation nobody has reviewed changes nothing, anywhere", async () => {
+  const real = await registeredMerchant();
+  const fake = await makeEntity("Fixture Fake Shop", { domain: "fake-shop.test" });
+  await Relation.create({ fromEntity: fake._id, toEntity: real._id, type: "impersonates", capturedBy: "capturer" });
+  assert.equal((await byName(fake.name)).tier, null);
+  const body = await publicCheck({ recipient: "fake-shop.test", type: "domain" });
+  assert.equal(body.match, false);
+  assert.equal(body.tier, null);
+  assert.ok(!JSON.stringify(body).includes("Fixture Shop Ltd"));
+});
+
+test("an impersonation can't go live without a second person", async () => {
+  const real = await registeredMerchant();
+  const fake = await makeEntity("Fixture Fake Shop");
+  const base = { fromEntity: fake._id, toEntity: real._id, type: "impersonates" };
+  assert.equal((await Relation.create({ ...base, capturedBy: "capturer" })).status, "pending");
+  await Relation.deleteMany({});
+  await assert.rejects(Relation.create({ ...base, status: "active" }), /review/i);
+  await assert.rejects(Relation.create({ ...base, status: "active", capturedBy: "capturer" }), /review/i);
+  await assert.rejects(Relation.create({ ...base, status: "active", capturedBy: "Ama", reviewedBy: " ama " }), /different person/i);
+});
+
+test("an update can't skip that review", async () => {
+  const real = await registeredMerchant();
+  const fake = await makeEntity("Fixture Fake Shop");
+  const relation = await Relation.create({ fromEntity: fake._id, toEntity: real._id, type: "impersonates", capturedBy: "capturer" });
+  await assert.rejects(Relation.updateOne({ _id: relation._id }, { status: "active" }), /save/i);
+  await assert.rejects(Relation.findOneAndUpdate({ _id: relation._id }, { $set: { status: "active", reviewedBy: "capturer" } }), /save/i);
+  relation.set({ status: "active", reviewedBy: "reviewer" });
+  await relation.save();
+  assert.ok(relation.reviewedAt);
+});
+
+test("a disputed impersonation stops showing", async () => {
+  const real = await registeredMerchant();
+  const fake = await makeEntity("Fixture Fake Shop", { domain: "fake-shop.test" });
+  const relation = await Relation.create({ fromEntity: fake._id, toEntity: real._id, type: "impersonates", ...reviewedBy });
+  relation.status = "disputed";
+  await relation.save();
+  assert.equal((await publicCheck({ recipient: "fake-shop.test", type: "domain" })).tier, null);
 });
 
 test("reports against a registered merchant change nothing", async () => {

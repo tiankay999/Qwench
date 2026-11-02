@@ -44,6 +44,12 @@ for (const state of STATES) {
 
 /* --- Report shape ------------------------------------------------- */
 
+test("banned words: an impersonation report", () => {
+  const report = buildReport({ state: "no_record", entity: "Fixture", impersonated: "Fixture Business", sources: [], dataDate: "2026-11-01" });
+  assert.match(report.state_sentence, /Fixture Business/);
+  assert.doesNotMatch(JSON.stringify(report), BANNED);
+});
+
 test("every report has the fixed parts, in order", () => {
   const report = buildReport({ ...SAMPLE, state: "named_in_notice" });
   assert.deepEqual(Object.keys(report), ["state_sentence", "foreign_context", "sources", "return_check", "warning_signs", "questions_to_ask", "footer"]);

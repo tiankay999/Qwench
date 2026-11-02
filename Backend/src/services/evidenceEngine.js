@@ -171,6 +171,7 @@ async function flagAdvertisedNumber(advertisedAs, type, valueHash) {
 
 const LEGAL_STATES_WITHOUT_TIER = new Set(["licensed", "sandbox", "registered", "authority"]);
 const MIN_INDEPENDENT_SOURCES = 3;
+const IMPERSONATION_CODE = "ADVERTISED_AS_BUSINESS_NOT_REGISTERED";
 
 /**
  * How well evidenced a finding is, not how bad it looks. Licensed, sandbox,
@@ -187,14 +188,18 @@ async function determineTier({ state, records, hashes, entity }) {
     return { tier: 1, codes };
   }
 
+  // A relation only goes active after a second person reviews it.
   const [partner, impersonation] = await Promise.all([
     Contribution.exists({ "identifiers.valueHash": { $in: hashes }, reviewStatus: "reviewed" }),
-    entity ? Relation.exists({ fromEntity: entity._id, type: "impersonates", status: "active" }) : null,
+    entity
+      ? Relation.findOne({ fromEntity: entity._id, type: "impersonates", status: "active" }).populate("toEntity", "name").populate("sourceId").lean()
+      : null,
   ]);
   if (partner || impersonation) {
     return {
       tier: 2,
-      codes: [...(partner ? ["PARTNER_CONFIRMED"] : []), ...(impersonation ? ["ADVERTISED_AS_BUSINESS_NOT_REGISTERED"] : [])],
+      codes: [...(partner ? ["PARTNER_CONFIRMED"] : []), ...(impersonation ? [IMPERSONATION_CODE] : [])],
+      impersonation,
     };
   }
 
@@ -218,8 +223,9 @@ async function determineTier({ state, records, hashes, entity }) {
  * Step 7 — Permitted use and suggested action
  * ------------------------------------------------------------------ */
 
-export function determineAllowedUse(tier, org) {
+export function determineAllowedUse(tier, org, codes = []) {
   if (tier === 1) return "customer_warning";
+  if (tier === 2 && codes.includes(IMPERSONATION_CODE)) return "customer_warning";
   if (tier === 2) return org?.warnsOnPartnerData ? "customer_warning" : "internal_review";
   if (tier === 3) return "internal_review";
   if (tier === 4) return "watch";
@@ -264,16 +270,21 @@ function sourceOf(record) {
   };
 }
 
-/** Rule 5 and rule 4: only a Ghana finding or a legal state reaches the public. */
+/**
+ * Rules 4 and 5: only a Ghana finding, a legal state or a reviewed impersonation
+ * reaches the public. Partner data, reports and signals never do.
+ */
 function maskForPublic(result) {
-  if (result.tier !== 1) {
+  if (result.impersonated) {
+    result.reason_codes = [IMPERSONATION_CODE];
+  } else if (result.tier !== 1) {
     result.tier = null;
     result.reason_codes = [];
   }
   result.allowed_use = null;
   result.suggested_action = "none";
 
-  if (result.state === "no_record" && !result.foreign_context.length) {
+  if (result.state === "no_record" && !result.foreign_context.length && !result.impersonated) {
     result.match = false;
     result.entity = null;
     result.entity_id = null;
@@ -292,10 +303,11 @@ async function finish(result, { audience, text, extraText }) {
   result.report = buildReport({
     state: result.state,
     entity: result.entity,
-    sources: result.state === "no_record" ? [] : result.sources,
+    sources: result.state === "no_record" && !result.impersonated ? [] : result.sources,
     foreignContext: result.foreign_context,
     merchantClaim: result.merchant_claim,
     didYouMean: result.did_you_mean,
+    impersonated: result.impersonated,
     text: reportText,
     dataDate: await dataDate(),
     isDemo: result.is_demo,
@@ -394,7 +406,7 @@ export async function evaluate(input) {
   const hashes = entity
     ? [...new Set([valueHash, ...(await Identifier.find({ entityId: entity._id }).select("valueHash").lean()).map((i) => i.valueHash)])]
     : [valueHash];
-  const { tier, codes } = await determineTier({ state: result.state, records: live, hashes, entity });
+  const { tier, codes, impersonation } = await determineTier({ state: result.state, records: live, hashes, entity });
   result.tier = tier;
   result.reason_codes = codes;
 
@@ -410,6 +422,10 @@ export async function evaluate(input) {
   result.entity_id = entity?._id || null;
   result.entity_slug = entity?.slug || null;
   result.sources = live.filter((r) => !isForeign(r) && r.sourceId).map(sourceOf);
+  if (impersonation) {
+    result.impersonated = impersonation.toEntity?.name || null;
+    if (impersonation.sourceId) result.sources.push(sourceOf({ sourceId: impersonation.sourceId, type: "impersonation" }));
+  }
   result.foreign_context = live
     .filter(isForeign)
     .map((r) => ({ jurisdiction: r.jurisdiction, publisher: r.sourceId?.publisher, date: sourceOf(r).date, url: r.sourceId?.url || null }));
@@ -418,7 +434,7 @@ export async function evaluate(input) {
   );
 
   /* --- 7. Permitted use and action ---------------------------------- */
-  result.allowed_use = determineAllowedUse(tier, org);
+  result.allowed_use = determineAllowedUse(tier, org, codes);
   result.suggested_action = determineSuggestedAction(tier, { allowedUse: result.allowed_use, newPayee, amountGhs, org });
 
   /* --- 8. Report. 9. Logging is the route's job. --------------------- */

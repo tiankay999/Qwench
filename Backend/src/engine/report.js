@@ -18,6 +18,7 @@ const SENTENCES = {
   sandbox: "{entity} is in {publisher}'s sandbox, dated {date}. This is provisional approval, not a full licence.",
   registered: "{entity} is registered with {publisher}, dated {date}.",
   merchant: "Registered by {business}. This shows who controls the number, and nothing more.",
+  impersonation: "Qwench reviewed this and found {entity} presented as {business}, without being part of {business}.",
   authority: "{entity} is a regulator or public body, not an investment.",
   didYouMean: "Did you mean {entity}?",
   foreign: "Context only: {publisher}, a regulator outside Ghana ({jurisdiction}), published an alert. This is not a Ghana finding.",
@@ -36,6 +37,7 @@ const QUESTIONS = {
   sandbox: ["Are they asking you to invest directly, or through their approved platform?", "Are they presenting sandbox approval as a full licence?"],
   registered: ["Does the name on the payment prompt match the business you expected?"],
   authority: ["Is someone using this body's name to ask you for money?"],
+  impersonation: ["Can you confirm this with the business, using the contact details on its own website?"],
   no_record: ["Can you find a licence number on their website, and confirm it with SEC Ghana?", "Do they have a physical office you can visit?", "Have they promised specific returns or guaranteed profits?"],
 };
 const SENT_MONEY = "Have you already sent money? If so, you can call the Cyber Security Authority on 292 and your bank.";
@@ -81,7 +83,9 @@ export function returnCheck(text) {
   return null;
 }
 
-function stateSentence({ state, entity, sources, merchantClaim, didYouMean }) {
+function stateSentence({ state, entity, sources, merchantClaim, didYouMean, impersonated }) {
+  if (impersonated) return fill(SENTENCES.impersonation, { entity, business: impersonated });
+
   const pick = (...types) => sources.find((s) => types.includes(s.record_type)) || sources[0] || {};
 
   if (state === "named_in_notice") {
@@ -102,10 +106,10 @@ function stateSentence({ state, entity, sources, merchantClaim, didYouMean }) {
   return NO_RECORD_SENTENCE;
 }
 
-export function buildReport({ state, entity, sources = [], foreignContext = [], merchantClaim, didYouMean, text, dataDate, isDemo = false }) {
+export function buildReport({ state, entity, sources = [], foreignContext = [], merchantClaim, didYouMean, impersonated, text, dataDate, isDemo = false }) {
   const signs = warningSigns(text);
-  const questions = [...(QUESTIONS[state] || []), ...(signs.length > 2 ? [SENT_MONEY] : [])];
-  const sentence = stateSentence({ state, entity, sources, merchantClaim, didYouMean });
+  const questions = [...(QUESTIONS[impersonated ? "impersonation" : state] || []), ...(signs.length > 2 ? [SENT_MONEY] : [])];
+  const sentence = stateSentence({ state, entity, sources, merchantClaim, didYouMean, impersonated });
 
   return {
     state_sentence: isDemo ? `${SENTENCES.demo} ${sentence}` : sentence,

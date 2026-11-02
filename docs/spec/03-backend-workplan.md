@@ -43,10 +43,11 @@ checked without a key, so list that as not done. Everything must work with no AI
 | 2 Data import | Done | `81efb43` |
 | Public reviewed impersonation | Done | `8b7a676` |
 | 3 Evidence engine | Done | `8cef2b8` |
-| 4 onwards | Not started | |
+| Public replies reveal nothing hidden | Done | `d505d29` |
+| 4 Public API | Done | `83aeeb6` |
+| 5 onwards | Not started | |
 
 Known bugs from the review that are still open, by phase:
-- **Phase 4:** `isPublicHttpUrl`; `text`, `urls` and image input on `/v1/public/check`, including matching a message against known names; raw URLs in `aiExtractor.js` and `urlAnalyzer.js` logs.
 - **Not built:** domain age, because nothing is cached yet.
 
 ## Rules that must never break
@@ -70,6 +71,7 @@ Known bugs from the review that are still open, by phase:
 13. Demo payment numbers must use obviously fake values such as `+233240000000`,
     so nobody real is flagged.
 14. AI may extract details. It never decides status, tier or wording of a finding.
+15. A public reply may reveal only regulator and sanctions records, legal states and reviewed impersonation. Anything else must be identical to a no-record reply, so that "no record" is never a tell.
 
 ---
 
@@ -233,8 +235,9 @@ Used by WhatsApp, Telegram and the web app.
   daily salt, and use it only for the fair-use limit of `PUBLIC_DAILY_LIMIT`.
 - The web app has no sender, so rate-limit it by IP without storing the IP.
 - Raise the JSON body limit on this route only, for images.
-- Reuse `analyzeUrl` and `analyzeImage` only for extraction, and discard any score or
-  verdict they return.
+- `aiExtractor.js` does the reading, because it only extracts. `analyzeUrl` and `analyzeImage` aren't used in `/v1`.
+- A message can hold several things to check. The reply leads with the most significant: tier 1, then reviewed impersonation, then an unknown payment number, then an unknown domain, then a legal state. The rest go in `report.also_checked`. A licensed name beside a stranger's number must not read as that firm.
+- Look-alikes are only ever `did_you_mean`: names, disguised names inside messages, and domains such as `app1e.com`. This covers Brand Watch's look-alike domain check for reviewed names with `allowFuzzy`.
 - Fix server-side fetching: check every redirect hop, resolve DNS, block private,
   loopback and link-local addresses, connect to the address you validated, and cap
   response size and time. Test each case.

@@ -32,6 +32,8 @@ styles. Dre owns the backend, and the API format is in `docs/API.md` once writte
 | `/api/trending` | Removed from public replies |
 | `/health` | Stays |
 
+The request format, reply fields and curl examples are in `Backend/docs/API.md`. `skipConfirmation`, `pending_records` and `return_check.warning` are gone. When someone picks a `did_you_mean` suggestion, send that name as a new check.
+
 ## If time runs out, cut in this order
 
 1. Telegram

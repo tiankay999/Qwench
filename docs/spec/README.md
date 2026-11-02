@@ -42,6 +42,7 @@ Stay in your own area. If you need something from another owner, list it for the
 12. Demo payment numbers use obviously fake values such as `+233240000000`.
 13. AI may extract details. It never decides status, tier or the wording of a finding.
 14. MTN, banks and regulators are prospects, not partners. Never imply otherwise.
+15. A public reply may reveal only regulator and sanctions records, legal states and reviewed impersonation. Anything else must be identical to a no-record reply, so that "no record" is never a tell.
 
 ## Decisions already made
 
@@ -62,6 +63,8 @@ Stay in your own area. If you need something from another owner, list it for the
 - **Record statuses:** `pending`, `active`, `expired`, `withdrawn`.
 - **Code layout:** existing files in `src/routes/` and `src/services/` stay where they are.
 - **Reviewed impersonation is public:** Dre decided this on 2 November 2026. It shows as tier 2, naming the business, once a second person has reviewed it. Partner data, reports and signals stay out of public replies.
+- **Tier 2 payment-screen warnings:** only where the institution has opted in. Partner data never reaches a public reply.
+- **Appeals:** replies answer only about what is publicly shown, and never confirm or deny internal data.
 - **Evidence engine:** `src/services/evidenceEngine.js` is the only engine. `checkService.js` is deprecated.
 
 ## Code already on `main`
@@ -91,13 +94,11 @@ Backend progress and open bugs are in [03-backend-workplan.md](03-backend-workpl
 
 | Gap | What the spec needs |
 |---|---|
-| `/v1/public/check` takes `recipient` and `type` only | Also `text`, `urls` and an image, because the bots and paste box send whole messages |
-| `did_you_mean` is in replies, but the bot still calls `/api/verify-name` | Move the bot over, so `/api/verify-name` can retire |
+| `did_you_mean` is in replies, but the bot still calls `/api/verify-name`, which suggests unreviewed names | Move the bot over, so `/api/verify-name` can retire |
 | No `/v1/console` routes | Login, lookup, payment check, feed, keys, review queue |
 | `reviewRecords.js` approves records in bulk | Don't use it for real data. Every record needs a real second review. Migrated records have no quote, so it can't activate them |
 | The bot's "On file, awaiting review" message | Remove it from `messages.js`. Pending records are no longer returned, so `pending_records` is gone |
 | Feed may include partner data | Confirm that partner numbers never appear in it |
-| `isPublicHttpUrl` follows redirects unchecked | Fix as described in the backend workplan |
 | The bot still depends on `/api` | Move it, then retire `/api` with Dre's approval |
 | `/api/check` no longer returns scores, but other `/api` routes and the old scoring code remain | Must not be shown or demoed |
 | The web app uses mock data, with risk levels and "scam" wording | Replace with API data and fixed wording. These break rules 1 and 2 |

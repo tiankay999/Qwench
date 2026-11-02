@@ -1,14 +1,11 @@
-import { getTrending } from "./api.js";
-import { API_ERROR, CHECK_PROMPT, HELP, WELCOME, formatTrending } from "./messages.js";
+import { CHECK_PROMPT, HELP, WELCOME } from "./messages.js";
 import { runCheck } from "./flows/checkFlow.js";
-import { handleEvidence } from "./flows/evidenceFlow.js";
-import { handleSchemeName, handleSchemeSource, startReport } from "./flows/reportFlow.js";
-import { handleSpoofChoice, verifyBeforeCheck } from "./flows/verifyFlow.js";
+import { handleSchemeName, startReport } from "./flows/reportFlow.js";
 import { STATE, getSession, resetSession, setState, stateExpired } from "./sessions.js";
 
 /**
- * Decide what to do with one incoming message.
- * ctx = { jid, phone, send(text) }
+ * Decide what to do with one incoming message. Nothing about it is logged.
+ * ctx = { jid, send(text) }
  * media = { base64, mimeType } when the user sent an image
  */
 export async function routeMessage(ctx, rawText, media = null) {
@@ -19,53 +16,32 @@ export async function routeMessage(ctx, rawText, media = null) {
   const fullCtx = { ...ctx, session };
   const command = text.toLowerCase();
 
-  console.log(`[router] ${ctx.phone} [${session.state}] "${text}"${media ? " +image" : ""}`);
-
   // A flow the user abandoned should not capture their next question.
   if (stateExpired(session)) resetSession(session);
 
-  /* --- Evidence collection takes priority: it is the only state that
-         accepts images ------------------------------------------------ */
-  if (session.state === STATE.AWAITING_EVIDENCE) {
-    return handleEvidence(fullCtx, text, media);
-  }
-
-  // Outside the evidence flow an image has no meaning, so say so rather than
-  // silently dropping it.
-  if (media && !text) {
-    return ctx.send(
-      "📸 Thanks, but I need to know what to check first.\n\nSend me a company name, token or link, and if I can't verify it I'll ask you for screenshots."
-    );
-  }
-
   /* --- Mid-flow states take priority over keyword matching -------- */
-  if (session.state === STATE.AWAITING_SPOOF_CHOICE) {
-    const handled = await handleSpoofChoice(fullCtx, text);
-    // null means "not a menu choice" -- fall through and treat it as a new query.
-    if (handled !== null) return handled;
+  if (session.state === STATE.AWAITING_SUGGESTION_REPLY) {
+    const suggestion = session.draft.suggestion;
+    resetSession(session);
+    if (/^(yes|y|1)$/i.test(command)) return runCheck(fullCtx, suggestion);
+    // Anything else is a new message, handled below.
   }
 
-  if (session.state === STATE.AWAITING_SCHEME_NAME) {
+  if (session.state === STATE.AWAITING_SCHEME_NAME && text) {
     return handleSchemeName(fullCtx, text);
   }
 
-  if (session.state === STATE.AWAITING_SCHEME_SOURCE) {
-    return handleSchemeSource(fullCtx, text);
-  }
-
   if (session.state === STATE.AWAITING_CHECK_QUERY) {
-    return checkWithVerification(fullCtx, text);
+    return runCheck(fullCtx, text, media);
   }
 
   /* --- First-time user gets the welcome message ------------------- */
   if (session.isNew) {
     session.isNew = false;
-    console.log(`[router] new user ${ctx.phone} -- sending welcome`);
     await ctx.send(WELCOME);
 
-    // They may have opened with a real query ("Menzgold") rather than a
-    // greeting -- fall through so it still gets handled, but do not send the
-    // welcome twice if a greeting is all they sent.
+    // They may have opened with a real message rather than a greeting -- fall
+    // through so it still gets handled, but do not send the welcome twice.
     if (isGreeting(command)) return;
   }
 
@@ -89,37 +65,10 @@ export async function routeMessage(ctx, rawText, media = null) {
     return startReport(fullCtx);
   }
 
-  if (/^(trending|top|popular)$/i.test(command)) {
-    resetSession(session);
-    try {
-      const items = await getTrending(5);
-      return ctx.send(formatTrending(items));
-    } catch (err) {
-      console.error("[router] trending failed:", err.message);
-      return ctx.send(API_ERROR);
-    }
-  }
-
   /* --- Anything else is treated as something to check ------------- */
   // "check menzgold" / "verify Expert Option" -> strip the verb, check the rest
   const stripped = text.replace(/^(check|verify|scan|is)\s+/i, "").trim();
-  return checkWithVerification(fullCtx, stripped || text);
-}
-
-/**
- * Name verification first, then the risk check.
- * Verification may take over the conversation (to ask which name was meant),
- * in which case it has already replied.
- */
-async function checkWithVerification(ctx, query) {
-  const outcome = await verifyBeforeCheck(ctx, query);
-
-  // true = verification is handling the conversation (it asked a question).
-  if (outcome === true) return;
-
-  // An object means "carry on, but with this extra context" -- currently a
-  // registered entity to point at once the report is ready.
-  return runCheck(ctx, query, outcome?.continueWith || {});
+  return runCheck(fullCtx, stripped || text, media);
 }
 
 function isGreeting(command) {

@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
-    "logout": "node src/scripts/logout.js"
+    "logout": "node src/scripts/logout.js",
+    "test": "node --test \"test/**/*.test.js\""
   },
   "license": "ISC",
   "dependencies": {

@@ -46,6 +46,7 @@ export function formatReply(reply) {
     ...report.notes,
     report.disclaimer,
     report.footer,
+    reply.did_you_mean?.suggested_entity ? `Did you mean ${reply.did_you_mean.suggested_entity}? Send that name to check it.` : "",
   ];
   return parts.filter(Boolean).join("\n\n");
 }

@@ -174,7 +174,7 @@ curl http://localhost:4000/v1/public/about
 
 ## Moving off /api
 
-`/api` keeps working until the bot and web app have moved. Nothing is removed before Dre approves it.
+The WhatsApp bot has moved to `/v1`, and the web app doesn't call the API yet. `/api` stays until Dre approves removing it, and it still returns unreviewed names, so don't expose it publicly.
 
 | Old route | New route |
 |---|---|

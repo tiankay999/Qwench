@@ -95,6 +95,7 @@ services:
       WEB_APP_URL: ${WEB_APP_URL:-http://localhost:3000}
       AUTH_DIR: /app/auth
       QR_SMALL: ${QR_SMALL:-true}
+      PAIRING_NUMBER: ${PAIRING_NUMBER:-}
       ALLOW_GROUPS: ${ALLOW_GROUPS:-false}
       BAILEYS_LOG_LEVEL: ${BAILEYS_LOG_LEVEL:-silent}
       CHANNEL_API_KEY: ${CHANNEL_API_KEY}

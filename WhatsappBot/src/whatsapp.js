@@ -15,6 +15,8 @@ const AUTH_DIR = process.env.AUTH_DIR || "./auth";
 const ALLOW_GROUPS = process.env.ALLOW_GROUPS === "true";
 // Narrow terminals render the compact QR better; set QR_SMALL=false for the big one.
 const QR_SMALL = process.env.QR_SMALL !== "false";
+// Phone number to link with an 8-digit pairing code instead of scanning a QR code (e.g. 233504421995)
+const PAIRING_NUMBER = (process.env.PAIRING_NUMBER || "").replace(/[^0-9]/g, "");
 // WhatsApp images are small; refuse anything the vision model would reject.
 const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
 
@@ -50,7 +52,7 @@ export async function startWhatsApp() {
     },
     // Keep the phone's notifications intact while we are testing.
     markOnlineOnConnect: false,
-    browser: ["Qwench", "Chrome", "1.0.0"],
+    browser: ["Ubuntu", "Chrome", "20.0.04"],
     generateHighQualityLinkPreview: false,
     syncFullHistory: false,
     getMessage: async (key) => {
@@ -60,10 +62,33 @@ export async function startWhatsApp() {
 
   sock.ev.on("creds.update", saveCreds);
 
+  // Link using an 8-digit pairing code instead of scanning QR if PAIRING_NUMBER is set
+  if (PAIRING_NUMBER && !sock.authState.creds.registered) {
+    setTimeout(async () => {
+      try {
+        const code = await sock.requestPairingCode(PAIRING_NUMBER);
+        console.log("");
+        console.log("===========================================================");
+        console.log(`  📱  WHATSAPP 8-DIGIT PAIRING CODE`);
+        console.log(`      Your code:  ${code}`);
+        console.log("===========================================================");
+        console.log("  To link your phone:");
+        console.log("  1. Open WhatsApp on your phone");
+        console.log("  2. Settings (or ⋮) > Linked devices > Link a device");
+        console.log("  3. Tap 'Link with phone number instead' at the bottom");
+        console.log(`  4. Enter this code: ${code}`);
+        console.log("===========================================================");
+        console.log("");
+      } catch (err) {
+        console.error("[wa] failed to request pairing code:", err.message);
+      }
+    }, 3000);
+  }
+
   sock.ev.on("connection.update", (update) => {
     const { connection, lastDisconnect, qr } = update;
 
-    if (qr) {
+    if (qr && !PAIRING_NUMBER) {
       console.log("");
       console.log("===========================================================");
       console.log("  📱  SCAN THIS QR CODE WITH WHATSAPP");
@@ -72,8 +97,7 @@ export async function startWhatsApp() {
       console.log("");
       qrcode.generate(qr, { small: QR_SMALL }, (art) => console.log(art));
       console.log("");
-      console.log("  (QR looks garbled? Run again with QR_SMALL=false, or");
-      console.log("   widen the terminal window.)");
+      console.log("  (Tip: Set PAIRING_NUMBER in .env to link with an 8-digit code instead of QR!)");
       console.log("");
     }
 

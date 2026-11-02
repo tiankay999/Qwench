@@ -353,6 +353,23 @@ test("a record with no quote can't be approved", async () => {
   assert.equal((await Record.findById(doc._id)).status, "pending");
 });
 
+test("a reviewer can add the wording a record is missing, and it's audited", async () => {
+  const doc = await pendingRecord("collector:sec", { quote: undefined });
+  const res = await send(`/review-queue/${doc._id}`, { kind: "record", decision: "approve", quote: "  Wording from the original.  " }, await session("reviewer@qwench.test"));
+  assert.equal(res.status, 200);
+  const saved = await Record.findById(doc._id);
+  assert.equal(saved.status, "active");
+  assert.equal(saved.quote, "Wording from the original.");
+  const audit = await AuditLog.findOne({ target: `Record:${doc._id}` }).lean();
+  assert.equal(audit.after.quoteAddedByReviewer, true);
+});
+
+test("a reviewer can't replace wording taken from the notice", async () => {
+  const doc = await pendingRecord();
+  await send(`/review-queue/${doc._id}`, { kind: "record", decision: "approve", quote: "Different words" }, await session("reviewer@qwench.test"));
+  assert.equal((await Record.findById(doc._id)).quote, "Fixture quote");
+});
+
 test("a rejected record is withdrawn", async () => {
   const doc = await pendingRecord();
   await send(`/review-queue/${doc._id}`, { kind: "record", decision: "reject" }, await session("reviewer@qwench.test"));

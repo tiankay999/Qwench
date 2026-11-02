@@ -18,6 +18,7 @@ export const IDENTIFIER_TYPES = [
   "telegram_link",
   "tiktok_handle",
   "merchant_id",
+  "app_id",
 ];
 
 /** Types that hold personal data and must never be displayed raw. */
@@ -88,6 +89,16 @@ export function normalizeHandle(raw) {
     .replace(/^@+/, "");
 }
 
+/** A Play Store or App Store link, or an id, as "play:com.example.app" or "apple:123". */
+export function normalizeAppId(raw) {
+  const value = String(raw || "").trim();
+  const play = value.match(/play\.google\.com\/store\/apps\/details\?(?:[^#]*&)?id=([\w.]+)/i);
+  if (play) return `play:${play[1].toLowerCase()}`;
+  const apple = value.match(/apps\.apple\.com\/[^\s]*?\/?id(\d+)/i);
+  if (apple) return `apple:${apple[1]}`;
+  return /^(?:play|apple):[\w.]+$/i.test(value) ? value.toLowerCase() : "";
+}
+
 /** Digits only — formatting varies by bank and carries no meaning. */
 export function normalizeAccount(raw) {
   return String(raw || "").replace(/\D/g, "");
@@ -111,6 +122,8 @@ export function normalizeIdentifier(type, raw) {
       return normalizeDomain(raw) + (String(raw).match(/\/([A-Za-z0-9_]+)\/?$/)?.[1]?.toLowerCase() ?? "");
     case "merchant_id":
       return String(raw || "").trim().toUpperCase();
+    case "app_id":
+      return normalizeAppId(raw);
     case "name":
     default:
       return normalizeName(raw);

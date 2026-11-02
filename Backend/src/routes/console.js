@@ -9,6 +9,7 @@
 import bcrypt from "bcrypt";
 import { Router } from "express";
 
+import { collectorStatus } from "../collectors/run.js";
 import { sendError } from "../middleware/errorHandler.js";
 import { consoleLimiter, endSession, loginLimiter, requireQwenchReviewer, requireRole, requireSession, startSession } from "../middleware/session.js";
 import { apiKeyRules, checkRules, feedRules, loginRules, reviewRules } from "../middleware/validate.js";
@@ -133,6 +134,14 @@ router.delete("/api-keys/:id", admin, async (req, res, next) => {
 
 const reviewers = [...signedIn, requireQwenchReviewer];
 
+router.get("/collectors", reviewers, async (_req, res, next) => {
+  try {
+    return res.json(await collectorStatus());
+  } catch (err) {
+    return next(err);
+  }
+});
+
 router.get("/review-queue", reviewers, async (req, res, next) => {
   try {
     const items = await listQueue(req.user, req.organization);
@@ -144,7 +153,7 @@ router.get("/review-queue", reviewers, async (req, res, next) => {
 
 router.post("/review-queue/:id", reviewers, reviewRules, async (req, res, next) => {
   try {
-    const outcome = await decide({ kindName: req.body.kind, id: req.params.id, decision: req.body.decision, user: req.user, org: req.organization });
+    const outcome = await decide({ kindName: req.body.kind, id: req.params.id, decision: req.body.decision, quote: req.body.quote, user: req.user, org: req.organization });
     if (outcome.error) return sendError(res, outcome.error.status, outcome.error.code, outcome.error.message);
     return res.json({ id: req.params.id, kind: req.body.kind, status: outcome.status });
   } catch (err) {

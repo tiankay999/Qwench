@@ -278,9 +278,10 @@ There's no sign-up. Create users with `pnpm user:create`, or `pnpm seed:demo` on
 | `POST /v1/console/api-keys` | `org_admin` | `{ "scopes": ["check", "feed"] }`. The reply has the full `key`, shown only this once |
 | `DELETE /v1/console/api-keys/:id` | `org_admin` | Revokes it at once |
 | `GET /v1/console/review-queue` | Qwench reviewers | `{ "count", "items": [...] }`. Each item has `id`, `kind`, `title`, `can_review` and details for its kind |
-| `POST /v1/console/review-queue/:id` | Qwench reviewers | `{ "kind", "decision": "approve" or "reject" }` |
+| `POST /v1/console/review-queue/:id` | Qwench reviewers | `{ "kind", "decision": "approve" or "reject" }`. A record with no wording also takes `"quote"`, copied from the original |
+| `GET /v1/console/collectors` | Qwench reviewers | Whether each regulator source is working, and how much is waiting |
 
-Queue `kind` is `record`, `relation`, `public_report`, `contribution` or `signal`. Refusals you should show:
+Queue `kind` is `record`, `relation`, `public_report`, `contribution`, `signal` or `notice`. A `notice` is one the collector couldn't fully read, so a person reads the original. Refusals you should show:
 
 | Code | Meaning |
 |---|---|

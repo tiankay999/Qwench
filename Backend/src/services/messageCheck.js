@@ -186,6 +186,7 @@ export async function checkMessage(input, deps = {}) {
     ...found.wallets.map((value) => ({ type: "wallet", value })),
     ...found.domains.map((value) => ({ type: "domain", value })),
     ...fromMessage.manual_review.map(socialCandidate),
+    ...fromMessage.app_ids.map((value) => ({ type: "app_id", value })),
     ...named.map((value) => ({ type: "name", value })),
   ].slice(0, MAX_CANDIDATES);
 

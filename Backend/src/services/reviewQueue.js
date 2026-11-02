@@ -1,4 +1,4 @@
-import { Contribution, Entity, PublicReport, Record, Relation, Signal, recordAudit } from "../models/index.js";
+import { CollectedNotice, Contribution, Entity, PublicReport, Record, Relation, Signal, recordAudit } from "../models/index.js";
 
 /**
  * The review queue: where a second person approves what goes live.
@@ -26,7 +26,9 @@ const KINDS = {
     isPending: (doc) => doc.status === "pending",
     isOwn: (doc, user) => samePerson(doc.capturedBy, user.email),
     statusOf: (doc) => doc.status,
-    approve(doc, user) {
+    approve(doc, user, { quote } = {}) {
+      // A reviewer can add wording from the original when it couldn't be read automatically.
+      if (!(doc.quote || "").trim() && (quote || "").trim()) doc.quote = quote.trim();
       if (!(doc.quote || "").trim()) return { error: { status: 400, code: "needs_quote", message: "This record has no quote from its source, so it can't go live" } };
       const ended = doc.endsOn && new Date(doc.endsOn) <= new Date();
       doc.set({ status: ended ? "expired" : "active", reviewedBy: user.email, reviewedAt: new Date() });
@@ -37,11 +39,12 @@ const KINDS = {
       return {};
     },
     async list(filter) {
-      const docs = await Record.find(filter).populate("sourceId").populate("entityId", "name").sort({ createdAt: 1 }).limit(PAGE).lean();
+      const docs = await Record.find(filter).populate("sourceId").populate("entityId", "name aliases").sort({ createdAt: 1 }).limit(PAGE).lean();
       return docs.map((d) => ({
         id: String(d._id),
         kind: "record",
         title: d.entityId?.name || null,
+        aliases: d.entityId?.aliases || [],
         record_type: d.type,
         jurisdiction: d.jurisdiction,
         license_type: d.licenseType || null,
@@ -149,6 +152,39 @@ const KINDS = {
     },
   },
 
+  // A regulator's notice the collector couldn't read fully, for a person to look at.
+  notice: {
+    model: CollectedNotice,
+    label: "CollectedNotice",
+    pending: { status: "needs_person" },
+    isPending: (doc) => doc.status === "needs_person",
+    isOwn: () => false,
+    statusOf: (doc) => doc.status,
+    approve(doc) {
+      doc.status = "handled";
+      return {};
+    },
+    reject(doc) {
+      doc.status = "not_relevant";
+      return {};
+    },
+    async list(filter) {
+      const docs = await CollectedNotice.find(filter).sort({ publishedOn: -1 }).limit(PAGE).lean();
+      return docs.map((d) => ({
+        id: String(d._id),
+        kind: "notice",
+        title: d.title,
+        url: d.url,
+        document_url: d.documentUrl || null,
+        published_on: d.publishedOn,
+        note: d.note || null,
+        websites: d.websitesForPerson || [],
+        created_at: d.createdAt,
+        raw: d,
+      }));
+    },
+  },
+
   signal: {
     model: Signal,
     label: "Signal",
@@ -195,7 +231,7 @@ export async function listQueue(user, org) {
 }
 
 /** Returns { error } or { status }. */
-export async function decide({ kindName, id, decision, user, org }) {
+export async function decide({ kindName, id, decision, user, org, quote }) {
   const kind = KINDS[kindName];
   const notFound = { error: { status: 404, code: "not_found", message: "That item isn't in the queue" } };
   if (!isId(id)) return notFound;
@@ -207,7 +243,7 @@ export async function decide({ kindName, id, decision, user, org }) {
   if (kind.isOwn(doc, user)) return { error: { status: 403, code: "self_approval", message: "A different person has to review this" } };
 
   const before = kind.statusOf(doc);
-  const outcome = decision === "approve" ? kind.approve(doc, user) : kind.reject(doc, user);
+  const outcome = decision === "approve" ? kind.approve(doc, user, { quote }) : kind.reject(doc, user);
   if (outcome.error) return outcome;
 
   try {
@@ -222,7 +258,7 @@ export async function decide({ kindName, id, decision, user, org }) {
     action: `${kindName}.${decision}`,
     target: `${kind.label}:${doc._id}`,
     before: { status: before },
-    after: { status: kind.statusOf(doc) },
+    after: { status: kind.statusOf(doc), ...(quote ? { quoteAddedByReviewer: true } : {}) },
   });
 
   return { status: kind.statusOf(doc) };

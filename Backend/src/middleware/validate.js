@@ -13,7 +13,7 @@ import { sendError } from "./errorHandler.js";
  * when a bot sends more than it should.
  */
 
-export const REVIEW_KINDS = ["record", "relation", "public_report", "contribution", "signal"];
+export const REVIEW_KINDS = ["record", "relation", "public_report", "contribution", "signal", "notice"];
 
 /** Collect express-validator errors into the /v1 error shape. */
 export function handleValidation(req, res, next) {
@@ -140,7 +140,8 @@ export const apiKeyRules = [
 ];
 
 export const reviewRules = [
-  stripUnknown(["kind", "decision"]),
+  stripUnknown(["kind", "decision", "quote"]),
+  body("quote").optional({ values: "null" }).isString().isLength({ max: 1000 }).withMessage("quote is too long"),
   body("kind").isIn(REVIEW_KINDS).withMessage(`kind must be one of: ${REVIEW_KINDS.join(", ")}`),
   body("decision").isIn(["approve", "reject"]).withMessage("decision must be approve or reject"),
   handleValidation,

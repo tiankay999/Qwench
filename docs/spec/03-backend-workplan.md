@@ -45,6 +45,7 @@ The bot calls `/api/check`, `/api/report`, `/api/trending`, `/api/verify-name`,
 | 3 Evidence engine | Done | `8cef2b8` |
 | Public replies reveal nothing hidden | Done | `d505d29` |
 | 4 Public API | Done | `83aeeb6` |
+| Page signals, frozen times, bonus rules | Done | `28a578d` |
 | Evidence levels, disclaimer | Done | `9881a0c` |
 | Link facts, domain age, more text rules | Done | `619b674` |
 | AI red flags, hidden-text defences | Done | `7b05c02` |
@@ -215,9 +216,14 @@ If `src/data/reviewed/` is empty, use test fixtures for tests and tell Dre that 
    `report.link_facts` gives where a link lands, shorteners, watched endings, no HTTPS,
    password and payment forms, and sites up to 90 days old. A link is checked against
    records at its landing address. Age comes from RDAP. For `.gh`, only the registry
-   answers, at `whois.nic.gh`: its terms forbid high-volume automated use, so it stays
-   off until `GH_WHOIS_LOOKUP=true`, is capped per hour and cached, and only the date is
-   read. Plain text uses rules only, not AI (Dre, 2 November 2026).
+   answers, at `whois.nic.gh`. Dre approved its use on 2 November 2026. Its terms forbid
+   high-volume automated use, so it is capped per hour and cached, only the date is read,
+   and `GH_WHOIS_LOOKUP=false` switches it off. Plain text uses rules only, not AI.
+   Only free endings such as `.tk` are noted: paid ones such as `.xyz` prove nothing.
+   `link_facts` also covers pages that only look functional, from Dre's own observation
+   of bonus and gift sites: dead links and buttons on static pages, links that aren't
+   what they show, chat-only links, and comment times that all match or never change.
+   Tested on 10 real legitimate sites with no false flags, not yet on real scam sites.
 9. **Report:** fixed templates produce `state_sentence`, `sources`, `return_check`,
    `warning_signs`, `questions_to_ask` and `footer`. The footer gives the data date,
    SEC 0800 100 065, CSA 292 and "Information, not advice."

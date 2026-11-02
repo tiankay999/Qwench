@@ -31,6 +31,10 @@ Put files in `Backend/src/data/reviewed/`:
 }
 ```
 
+Each file holds one record or a list of records. Check them with `pnpm import:reviewed --dry-run`, which gives a reason for every rejected row. A row needs a quote, an `effectiveOn` date, a source link and a second reviewer. A licence also needs `licenseType`. Identifiers listed here must be published in the notice, because they stay readable.
+
+The format has no way to link an impersonator to a real company, so tell Dre when you reach the Hut 8 case. It also has no way to withdraw a record. Tell Dre if a notice is withdrawn.
+
 ## Rules
 
 - Use regulators' originals, not news reports.

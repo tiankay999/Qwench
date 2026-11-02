@@ -40,10 +40,11 @@ checked without a key, so list that as not done. Everything must work with no AI
 | 0 Setup | Done | `a63f1cd` |
 | 1 Data model | Done | `4158cef` |
 | Merge of `main` with the evidence engine | Done | `2d8286c` |
-| 2 onwards | Not started | |
+| 2 Data import | Done | `81efb43` |
+| 3 onwards | Not started | |
 
 Known bugs from the review that are still open, by phase:
-- **Phase 3:** foreign alerts at tier 1, tier 1 suggested action ignores new payee and amount, tier 2 can return `warn`, `internal_only` instead of `internal_review`, expired records still counted, unreviewed signals reaching tier 4, partner numbers not found by a check, entities with only pending records returned as `match: true`, tier 3 not counting independent sources, `/api/check` returning `normalized` and `value_hash`.
+- **Phase 3:** foreign alerts at tier 1, tier 1 suggested action ignores new payee and amount, tier 2 can return `warn`, `internal_only` instead of `internal_review`, expired records still counted, unreviewed signals reaching tier 4, partner numbers not found by a check, entities with only pending records returned as `match: true`, tier 3 not counting independent sources, `/api/check` returning `normalized` and `value_hash`, `did_you_mean` suggesting names and statuses from the unreviewed `sec-ghana.json`, demo results missing `is_demo`.
 - **Phase 4:** `isPublicHttpUrl`.
 
 ## Rules that must never break
@@ -139,6 +140,8 @@ Create these models. Add indexes on anything used for lookup.
 
 **`src/scripts/migrate-legacy.js`** imports `sec-ghana.json` with status `pending`.
 Pending records are never returned by a check. They only give the data lead a starting list.
+
+An entity with only pending records must read as `no_record`, with no name returned. `migrateOldData.js` was removed, because it could carry invented reports from `seed.js` into `/v1`.
 
 **`src/scripts/seed-demo.js`** runs only when `ALLOW_DEMO_SEED=true`. It creates
 labelled demo organisations, API keys, partner numbers, merchants, cases and findings.

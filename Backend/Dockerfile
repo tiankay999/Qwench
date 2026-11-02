@@ -16,7 +16,7 @@ RUN npm install -g pnpm@12.16.1
 # Stage 1: Install production dependencies
 FROM base AS deps
 WORKDIR /app
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml* ./
 RUN pnpm install --frozen-lockfile --prod
 
 # Stage 2: Final lightweight production image
@@ -37,7 +37,7 @@ USER node
 
 # Copy production node_modules and application code
 COPY --chown=node:node --from=deps /app/node_modules ./node_modules
-COPY --chown=node:node package.json ./
+COPY --chown=node:node package.json pnpm-workspace.yaml* ./
 COPY --chown=node:node src ./src
 
 EXPOSE 4000

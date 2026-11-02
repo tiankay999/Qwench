@@ -1,3 +1,5 @@
+import { existsSync, rmSync } from "node:fs";
+
 import makeWASocket, {
   DisconnectReason,
   fetchLatestBaileysVersion,
@@ -121,9 +123,16 @@ export async function startWhatsApp() {
 
       if (statusCode === DisconnectReason.loggedOut) {
         console.log("");
-        console.log("[wa] ❌ this device was logged out from the phone.");
-        console.log(`[wa]    delete the ${AUTH_DIR} folder and start the bot again to re-scan.`);
+        console.log("[wa] ❌ This session was logged out or the pairing code expired.");
+        console.log(`[wa] 🔄 Automatically resetting ${AUTH_DIR} so a fresh code can be generated on restart...`);
         console.log("");
+        try {
+          if (existsSync(AUTH_DIR)) {
+            rmSync(AUTH_DIR, { recursive: true, force: true });
+          }
+        } catch (e) {
+          console.error(`[wa] failed to clear ${AUTH_DIR}:`, e.message);
+        }
         process.exit(1);
       }
 

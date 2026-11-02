@@ -1,5 +1,4 @@
-import { existsSync, readdirSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, rmSync } from "node:fs";
 
 import makeWASocket, {
   DisconnectReason,
@@ -40,29 +39,7 @@ function saveMessage(id, message) {
   messageStore.set(id, message);
 }
 
-export function clearAuthDir() {
-  try {
-    if (existsSync(AUTH_DIR)) {
-      const files = readdirSync(AUTH_DIR);
-      for (const file of files) {
-        if (file === "bot.lock") continue;
-        try {
-          rmSync(join(AUTH_DIR, file), { recursive: true, force: true });
-        } catch {}
-      }
-      console.log(`[wa] 🧹 Cleaned session auth directory: ${AUTH_DIR}`);
-    }
-  } catch (e) {
-    console.error(`[wa] failed to clear ${AUTH_DIR}:`, e.message);
-  }
-}
-
 export async function startWhatsApp() {
-  if (process.env.RESET_AUTH === "true" || process.env.FORCE_RESET_AUTH === "true") {
-    console.log(`[wa] RESET_AUTH detected -- purging ${AUTH_DIR}...`);
-    clearAuthDir();
-  }
-
   // Credentials live in AUTH_DIR, so you only scan the QR code once.
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
   const { version, isLatest } = await fetchLatestBaileysVersion();
@@ -91,21 +68,17 @@ export async function startWhatsApp() {
   if (PAIRING_NUMBER && !sock.authState.creds.registered) {
     setTimeout(async () => {
       try {
-        const rawCode = await sock.requestPairingCode(PAIRING_NUMBER);
-        const formatted = rawCode?.match(/.{1,4}/g)?.join("-") || rawCode;
+        const code = await sock.requestPairingCode(PAIRING_NUMBER);
         console.log("");
         console.log("===========================================================");
         console.log(`  📱  WHATSAPP 8-DIGIT PAIRING CODE`);
-        console.log(`      Your code:  ${formatted}  (or: ${rawCode})`);
+        console.log(`      Your code:  ${code}`);
         console.log("===========================================================");
         console.log("  To link your phone:");
         console.log("  1. Open WhatsApp on your phone");
         console.log("  2. Settings (or ⋮) > Linked devices > Link a device");
         console.log("  3. Tap 'Link with phone number instead' at the bottom");
-        console.log(`  4. Enter this code: ${rawCode}`);
-        console.log("===========================================================");
-        console.log("  ⚠️  NOTE: You have ~60 seconds to enter this code on your");
-        console.log("     phone before WhatsApp expires it!");
+        console.log(`  4. Enter this code: ${code}`);
         console.log("===========================================================");
         console.log("");
       } catch (err) {
@@ -150,13 +123,17 @@ export async function startWhatsApp() {
 
       if (statusCode === DisconnectReason.loggedOut) {
         console.log("");
-        console.log("[wa] ❌ Pairing code expired or device was unlinked.");
-        console.log(`[wa] 🔄 Purging stale session files in ${AUTH_DIR} so a fresh code is generated immediately...`);
+        console.log("[wa] ❌ This session was logged out or the pairing code expired.");
+        console.log(`[wa] 🔄 Automatically resetting ${AUTH_DIR} so a fresh code can be generated on restart...`);
         console.log("");
-        clearAuthDir();
-        // Allow logs to flush and give Docker 2s before restarting cleanly
-        setTimeout(() => process.exit(1), 2000);
-        return;
+        try {
+          if (existsSync(AUTH_DIR)) {
+            rmSync(AUTH_DIR, { recursive: true, force: true });
+          }
+        } catch (e) {
+          console.error(`[wa] failed to clear ${AUTH_DIR}:`, e.message);
+        }
+        process.exit(1);
       }
 
       reconnectAttempts += 1;

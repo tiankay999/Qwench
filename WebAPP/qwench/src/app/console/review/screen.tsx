@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useConsoleUser } from "@/components/console/ConsoleShell";
-import { Button, EmptyState, ErrorNote, Facts, Loading, PageHeader, Tag } from "@/components/console/ui";
-import { ConsoleError, api, formatDate, type QueueItem } from "@/lib/console";
+import { Button, EmptyState, ErrorNote, Facts, Field, Loading, PageHeader, Tag, inputClass } from "@/components/console/ui";
+import { ConsoleError, api, formatDate, type CollectorStatus, type QueueItem } from "@/lib/console";
 
 const KIND_LABEL: Record<QueueItem["kind"], string> = {
   record: "Record",
@@ -11,6 +11,7 @@ const KIND_LABEL: Record<QueueItem["kind"], string> = {
   public_report: "Public report",
   contribution: "Member contribution",
   signal: "Rise in checks",
+  notice: "Notice to read",
 };
 
 const APPROVE: Record<QueueItem["kind"], { label: string; effect: string }> = {
@@ -19,6 +20,7 @@ const APPROVE: Record<QueueItem["kind"], { label: string; effect: string }> = {
   public_report: { label: "Confirm report", effect: "It's kept and counts as evidence. It doesn't change a public reply." },
   contribution: { label: "Approve contribution", effect: "Members can then see this number confirmed. The public can't." },
   signal: { label: "Approve signal", effect: "Members can then see this at tier 4. The public can't." },
+  notice: { label: "Mark as handled", effect: "This closes the notice. Anything in it still needs entering as its own record." },
 };
 
 const REJECT: Record<QueueItem["kind"], string> = {
@@ -27,6 +29,7 @@ const REJECT: Record<QueueItem["kind"], string> = {
   public_report: "Dismiss report",
   contribution: "Reject contribution",
   signal: "Dismiss signal",
+  notice: "Not relevant",
 };
 
 function details(item: QueueItem): [string, React.ReactNode][] {
@@ -36,6 +39,17 @@ function details(item: QueueItem): [string, React.ReactNode][] {
   };
 
   add("Type", item.record_type || item.relation_type);
+  add("Other names", item.aliases?.length ? item.aliases.join(", ") : undefined);
+  add("Why it's here", item.note);
+  if (item.url) {
+    add(
+      "Notice",
+      <a href={item.url} target="_blank" rel="noreferrer noopener" className="text-mid-navy underline dark:text-accent">
+        Read the notice{item.published_on ? `, ${formatDate(item.published_on)}` : ""}
+      </a>,
+    );
+  }
+  add("Websites in it", item.websites?.length ? item.websites.join(", ") : undefined);
   add("Jurisdiction", item.jurisdiction);
   add("From", item.from_entity);
   add("To", item.to_entity);
@@ -85,12 +99,14 @@ function QueueCard({ item, onDecided }: { item: QueueItem; onDecided: () => void
   const [confirming, setConfirming] = useState<"approve" | "reject" | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [quote, setQuote] = useState("");
+  const needsQuote = item.kind === "record" && !item.quote;
 
   async function decide(decision: "approve" | "reject") {
     setBusy(true);
     setError("");
     try {
-      await api(`/review-queue/${item.id}`, { body: { kind: item.kind, decision } });
+      await api(`/review-queue/${item.id}`, { body: { kind: item.kind, decision, ...(decision === "approve" && needsQuote ? { quote } : {}) } });
       onDecided();
     } catch (err) {
       setError(err instanceof ConsoleError ? err.message : "That didn't work. Try again.");
@@ -121,8 +137,15 @@ function QueueCard({ item, onDecided }: { item: QueueItem; onDecided: () => void
         ) : confirming ? (
           <div>
             <p className="mb-2 text-sm text-text-primary">{confirming === "approve" ? APPROVE[item.kind].effect : "This takes it out of the queue, and it won't go live."}</p>
+            {confirming === "approve" && needsQuote && (
+              <div className="mb-3">
+                <Field label="Exact wording from the original" htmlFor={`quote-${item.id}`} hint="Copy it word for word from the regulator's notice.">
+                  <textarea id={`quote-${item.id}`} rows={3} value={quote} onChange={(e) => setQuote(e.target.value)} className={`${inputClass} py-2`} />
+                </Field>
+              </div>
+            )}
             <div className="flex flex-wrap gap-2">
-              <Button disabled={busy} onClick={() => decide(confirming)}>
+              <Button disabled={busy || (confirming === "approve" && needsQuote && !quote.trim())} onClick={() => decide(confirming)}>
                 {confirming === "approve" ? APPROVE[item.kind].label : REJECT[item.kind]}
               </Button>
               <Button variant="secondary" disabled={busy} onClick={() => setConfirming(null)}>
@@ -148,6 +171,7 @@ export default function ReviewPage() {
   const [items, setItems] = useState<QueueItem[] | null>(null);
   const [kind, setKind] = useState<"all" | QueueItem["kind"]>("all");
   const [error, setError] = useState("");
+  const [sources, setSources] = useState<CollectorStatus | null>(null);
 
   const load = useCallback(
     () =>
@@ -158,7 +182,11 @@ export default function ReviewPage() {
   );
 
   useEffect(() => {
-    if (user.role === "reviewer") load();
+    if (user.role !== "reviewer") return;
+    load();
+    api<CollectorStatus>("/collectors")
+      .then(setSources)
+      .catch(() => setSources(null));
   }, [load, user.role]);
 
   const shown = useMemo(() => (items || []).filter((i) => kind === "all" || i.kind === kind), [items, kind]);
@@ -169,6 +197,18 @@ export default function ReviewPage() {
   return (
     <>
       <PageHeader title="Review queue" intro="Nothing goes live until a second person approves it. You can't review your own captures, and every decision is logged." />
+      {sources && (
+        <ul aria-label="Regulator sources" className="mb-4 grid gap-2 sm:grid-cols-2">
+          {sources.collectors.map((source) => (
+            <li key={source.collector} className="rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+              <p className="font-medium text-text-primary">{source.publisher}</p>
+              <p className="text-text-secondary">
+                {source.stale ? "Not working: no successful check in the last day." : `Checked ${formatDate(source.last_success_at)}.`}
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
       {error && <ErrorNote>{error}</ErrorNote>}
       {!items && !error && <Loading label="Loading the queue" />}
       {items && !items.length && <EmptyState title="Nothing to review.">New records, reports and contributions appear here.</EmptyState>}

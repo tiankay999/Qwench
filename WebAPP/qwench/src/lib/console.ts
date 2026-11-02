@@ -76,7 +76,13 @@ export type ApiKey = {
 
 export type QueueItem = {
   id: string;
-  kind: "record" | "relation" | "public_report" | "contribution" | "signal";
+  kind: "record" | "relation" | "public_report" | "contribution" | "signal" | "notice";
+  aliases?: string[];
+  url?: string;
+  document_url?: string | null;
+  published_on?: string;
+  note?: string | null;
+  websites?: string[];
   title: string;
   can_review: boolean;
   created_at?: string;
@@ -98,6 +104,12 @@ export type QueueItem = {
   checks_this_week?: number;
   checks_last_week?: number;
   distinct_sources?: number;
+};
+
+export type CollectorStatus = {
+  collectors: { collector: string; publisher: string; last_success_at: string | null; last_error: string | null; stale: boolean }[];
+  pending_records: number;
+  notices_needing_a_person: number;
 };
 
 export class ConsoleError extends Error {

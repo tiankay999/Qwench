@@ -101,6 +101,9 @@ const SIGNS = [
   [/\b(?:registration|joining|activation|processing) fee\b|\bpay to join\b/i, "The message asks you to pay to join."],
   [/\bcomplete tasks?\b|\bwatch videos?\b|\bearn per task\b/i, "The message offers pay for simple tasks."],
   [/\bsec[- ](?:approved|licensed|registered)\b|\bapproved by (?:the )?sec\b/i, "The message claims approval from a regulator."],
+  [/\btell (?:nobody|no one|no-one)\b|\bdon'?t tell (?:anyone|anybody)\b|\bdo not tell (?:anyone|anybody)\b|\bkeep this (?:private|secret|to yourself)\b|\bbetween us\b/i, "The message asks you to keep this offer private."],
+  [/\bpersonal (?:account|momo|mobile money|wallet)\b/i, "The message asks you to pay into a personal account."],
+  [/\bgift ?cards?\b|\bpay(?:ment)? (?:in|with|by) (?:usdt|btc|bitcoin|crypto)\b|\b(?:usdt|btc|bitcoin|crypto) only\b|\bsend (?:usdt|btc|bitcoin|crypto)\b/i, "The message asks for payment by crypto, gift card or a similar method."],
 ];
 
 /** Describes what the message says. It makes no judgement about the sender. */

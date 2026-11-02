@@ -26,6 +26,7 @@ export {
   CHECK_OUTCOMES,
 } from "./Check.js";
 export { default as SenderDay } from "./SenderDay.js";
+export { default as DomainAge } from "./DomainAge.js";
 export { default as Contribution, CONTRIBUTION_REVIEW_STATUSES } from "./Contribution.js";
 export { default as PublicReport, PUBLIC_REPORT_SOURCES, PUBLIC_REPORT_STATUSES, UNCONFIRMED_REPORT_DAYS } from "./PublicReport.js";
 export { default as Signal, SIGNAL_REVIEW_STATUSES } from "./Signal.js";

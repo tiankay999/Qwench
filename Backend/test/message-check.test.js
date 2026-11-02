@@ -155,23 +155,23 @@ test("different findings are still listed once each", async () => {
 
 /* --- Red flags from AI ---------------------------------------------- */
 
-const SECRECY = "The message asks you to keep this offer private.";
+const SECRECY = "The message uses a well-known person's name to promote the offer.";
 
 test("a red flag AI spots shows separately, in fixed wording", async () => {
-  const readImage = provider({ extracted_text: "Tell nobody about this offer", red_flags: [{ code: "secrecy", quote: "Tell nobody" }, { code: "made_up", quote: "Tell nobody" }, { code: "secrecy", quote: "not there" }] });
+  const readImage = provider({ extracted_text: "Celebrity Fixture uses this offer", red_flags: [{ code: "famous_endorsement", quote: "Celebrity Fixture" }, { code: "made_up", quote: "Celebrity Fixture" }, { code: "famous_endorsement", quote: "not there" }] });
   const { result } = await checkMessage({ image_base64: "eA==", mime_type: "image/png" }, { readImage });
   assert.deepEqual(result.report.ai_warning_signs, [SECRECY]);
   assert.deepEqual(result.report.warning_signs, []);
 });
 
 test("a page's red flag is checked against the page's real text", async () => {
-  const readPage = async () => ({ red_flags: [{ code: "secrecy", quote: "Tell nobody" }, { code: "pay_personal_account", quote: "my personal account" }] });
-  const { result } = await checkMessage({ urls: ["https://page.test"] }, { scrape: page("Tell nobody about this."), readPage });
+  const readPage = async () => ({ red_flags: [{ code: "famous_endorsement", quote: "Celebrity Fixture" }, { code: "pay_personal_account", quote: "my personal account" }] });
+  const { result } = await checkMessage({ urls: ["https://page.test"] }, { scrape: page("Celebrity Fixture uses this."), readPage });
   assert.deepEqual(result.report.ai_warning_signs, [SECRECY]);
 });
 
 test("red flags never change a status, tier, reason or action", async () => {
-  const readImage = provider({ extracted_text: "Tell nobody. Guaranteed returns.", red_flags: [{ code: "secrecy", quote: "Tell nobody" }, { code: "recruitment", quote: "Tell nobody" }] });
+  const readImage = provider({ extracted_text: "Celebrity Fixture. Guaranteed returns.", red_flags: [{ code: "famous_endorsement", quote: "Celebrity Fixture" }, { code: "recruitment", quote: "Celebrity Fixture" }] });
   const { result } = await checkMessage({ image_base64: "eA==", mime_type: "image/png" }, { readImage });
   assert.equal(result.state, "no_record");
   assert.equal(result.tier, null);

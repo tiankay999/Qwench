@@ -34,6 +34,18 @@ export const NOTES = {
 
 const ALSO_CHECKED = "{value}: {sentence}";
 
+export const LINK_FACTS = {
+  redirect: "The link {from} leads to {to}.",
+  shortener: "The link uses a link shortener, which hides where it goes.",
+  ending: "The website address ends in {ending}, which is on Qwench's list of endings to look at closely.",
+  noHttps: "The page doesn't use a secure connection (HTTPS).",
+  login: "The page asks for a password.",
+  payment: "The page has a payment form.",
+  newSite: "The website {domain} was registered {days} {unit} ago, on {date}. A new website isn't proof of anything on its own.",
+};
+
+export const linkFact = (name, values = {}) => fill(LINK_FACTS[name], values);
+
 const FOOTER = {
   dated: "Data as of {date}.",
   empty: "No reviewed records are loaded yet.",
@@ -63,6 +75,7 @@ export const ALL_TEMPLATES = Object.fromEntries(
     RETURN_NOTE,
     ALSO_CHECKED,
     ...NOTES,
+    ...Object.fromEntries(Object.entries(LINK_FACTS).map(([k, v]) => [`link_fact_${k}`, v])),
     ...Object.fromEntries(Object.entries(QUESTIONS).flatMap(([state, list]) => list.map((q, i) => [`question_${state}_${i}`, q]))),
     ...Object.fromEntries(WARNING_SIGN_TEMPLATES.map((sign, i) => [`warning_sign_${i}`, sign])),
   })
@@ -133,6 +146,7 @@ export function buildReport({ state, entity, sources = [], foreignContext = [], 
     return_check: returnCheck(text),
     warning_signs: signs,
     ai_warning_signs: [],
+    link_facts: [],
     questions_to_ask: questions,
     notes: [],
     footer: `${dataDate ? fill(FOOTER.dated, { date: dataDate }) : FOOTER.empty} ${FOOTER.contacts}`,

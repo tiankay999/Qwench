@@ -38,7 +38,9 @@ export function ResultPanel({ result, showMembers }: { result: CheckResult; show
           {result.tier !== null && <Tag>{TIER_LABEL[result.tier]}</Tag>}
           {result.is_demo && <DemoTag />}
         </div>
-        {result.entity && <h2 className="text-lg font-bold text-text-primary">{result.entity}</h2>}
+        <p className="text-lg font-bold text-text-primary">{report.evidence_level.label}</p>
+        <p className="mt-1 text-sm text-text-secondary">{report.evidence_level.meaning}</p>
+        {result.entity && <h2 className="mt-3 font-semibold text-text-primary">{result.entity}</h2>}
         <p className="mt-1 text-sm text-text-primary">{report.state_sentence}</p>
         {report.foreign_context.map((line) => (
           <p key={line} className="mt-2 text-sm text-text-secondary">
@@ -77,7 +79,9 @@ export function ResultPanel({ result, showMembers }: { result: CheckResult; show
         </Panel>
       )}
 
-      <p className="text-xs text-text-secondary">{report.footer}</p>
+      <p className="text-xs text-text-secondary">
+        {report.disclaimer} {report.footer}
+      </p>
     </div>
   );
 }

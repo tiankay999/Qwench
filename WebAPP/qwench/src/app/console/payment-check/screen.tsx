@@ -31,10 +31,11 @@ function MockPaymentScreen({ result, sent }: { result: CheckResult | null; sent:
           <div role="group" aria-label="Warning shown to the customer" className="mt-4 rounded-xl border border-text-primary p-3">
             <p className="flex items-center gap-1.5 text-sm font-semibold text-text-primary">
               <Info aria-hidden className="size-4" />
-              Before you send
+              {result.report.evidence_level.label}
             </p>
             <p className="mt-1 text-sm text-text-primary">{result.report.state_sentence}</p>
             {call && <p className="mt-2 text-sm text-text-primary">The bank will call you to confirm this payment.</p>}
+            <p className="mt-2 text-xs text-text-secondary">{result.report.disclaimer}</p>
           </div>
         )}
 

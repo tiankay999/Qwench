@@ -19,6 +19,8 @@ export type Source = {
 };
 
 export type Report = {
+  evidence_level: { code: string; label: string; meaning: string };
+  disclaimer: string;
   state_sentence: string;
   foreign_context: string[];
   also_checked: string[];

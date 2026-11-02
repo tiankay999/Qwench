@@ -89,7 +89,7 @@ export async function checkMessage(input, deps = {}) {
   let image = null;
   if (imageBase64) {
     image = await readImage(imageBase64, mimeType).catch(() => null);
-    if (!image || image.error || !image.extracted_text) notes.push(NOTES.imageUnread);
+    notes.push(!image || image.error || !image.extracted_text ? NOTES.imageUnread : NOTES.imageRead);
   }
 
   const readText = [text, ...pages.map((p) => p.text), image?.extracted_text || ""].filter(Boolean).join("\n").slice(0, MAX_READ_TEXT);
@@ -141,13 +141,14 @@ export async function checkMessage(input, deps = {}) {
     lead = { ...lead, result: await evaluate({ recipient: value, type: lead.type, text: readText, suggested_name: suggestedName, audience: "public" }) };
   }
 
-  const others = ranked.slice(1).map((c) => {
-    const label = c.result.entity || c.value;
-    return alsoCheckedLine(label, c.result.report.state_sentence);
-  });
+  // Each other finding once, and not the one the reply already leads with.
+  const others = ranked
+    .slice(1)
+    .filter((c) => !c.result.entity || c.result.entity !== lead.result.entity)
+    .map((c) => alsoCheckedLine(c.result.entity || c.value, c.result.report.state_sentence));
 
   const { result } = lead;
-  result.report.also_checked = others;
+  result.report.also_checked = [...new Set(others)];
   result.report.notes = notes;
 
   return {

@@ -95,6 +95,8 @@ Reply:
 
 **What a public reply can reveal:** only regulator and sanctions records, legal states and reviewed impersonation. Partner data, reports, signals and open cases look exactly like `no_record`. Don't try to infer more from a reply.
 
+**Images:** read by AI when a provider is configured. `report.notes` says "Read from an image by AI. Please confirm the details.", or that the image couldn't be read. Show the note. AI only pulls out what to check: it never sets a state, tier or any wording.
+
 **Not fetched automatically:** TikTok and Telegram links. They are saved for a person to review, and `report.notes` says so.
 
 ### POST /v1/public/reports

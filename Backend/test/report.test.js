@@ -169,7 +169,7 @@ test("sentences aren't read as domains, and short numbers aren't read as phones"
 });
 
 test("an empty message extracts nothing", () => {
-  assert.deepEqual(extract(""), { names: [], domains: [], links: [], numbers: [], wallets: [], manual_review: [], app_ids: [] });
+  assert.deepEqual(extract(""), { names: [], domains: [], links: [], numbers: [], wallets: [], accounts: [], manual_review: [], app_ids: [] });
 });
 
 /* --- AI candidates ------------------------------------------------ */

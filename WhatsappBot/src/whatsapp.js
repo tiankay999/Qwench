@@ -1,4 +1,5 @@
-import { existsSync, rmSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { join } from "node:path";
 
 import makeWASocket, {
   DisconnectReason,
@@ -39,7 +40,45 @@ function saveMessage(id, message) {
   messageStore.set(id, message);
 }
 
+export function clearAuthDir() {
+  try {
+    if (existsSync(AUTH_DIR)) {
+      const entries = readdirSync(AUTH_DIR);
+      for (const entry of entries) {
+        if (entry === "bot.lock") continue;
+        try {
+          rmSync(join(AUTH_DIR, entry), { recursive: true, force: true });
+        } catch {
+          // ignore transient busy handles
+        }
+      }
+      console.log(`[wa] 🧹 Session cache cleared from ${AUTH_DIR}`);
+    }
+  } catch (err) {
+    console.error(`[wa] failed to clear ${AUTH_DIR}:`, err.message);
+  }
+}
+
 export async function startWhatsApp() {
+  if (process.env.RESET_AUTH === "true" || process.env.FORCE_RESET_AUTH === "true") {
+    console.log(`[wa] RESET_AUTH requested -- clearing ${AUTH_DIR}...`);
+    clearAuthDir();
+  }
+
+  // If previous pairing was incomplete/unregistered, purge stale tokens so we don't reconnect to a dead session
+  const credsFile = join(AUTH_DIR, "creds.json");
+  if (existsSync(credsFile)) {
+    try {
+      const savedCreds = JSON.parse(readFileSync(credsFile, "utf8"));
+      if (!savedCreds.registered || !savedCreds.me) {
+        console.log(`[wa] ⚠️ Incomplete or expired session found in ${AUTH_DIR}. Resetting for clean pairing...`);
+        clearAuthDir();
+      }
+    } catch {
+      clearAuthDir();
+    }
+  }
+
   // Credentials live in AUTH_DIR, so you only scan the QR code once.
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
   const { version, isLatest } = await fetchLatestBaileysVersion();
@@ -68,17 +107,21 @@ export async function startWhatsApp() {
   if (PAIRING_NUMBER && !sock.authState.creds.registered) {
     setTimeout(async () => {
       try {
-        const code = await sock.requestPairingCode(PAIRING_NUMBER);
+        const rawCode = await sock.requestPairingCode(PAIRING_NUMBER);
+        const formatted = rawCode?.match(/.{1,4}/g)?.join("-") || rawCode;
         console.log("");
         console.log("===========================================================");
         console.log(`  📱  WHATSAPP 8-DIGIT PAIRING CODE`);
-        console.log(`      Your code:  ${code}`);
+        console.log(`      Your code:  ${formatted}  (or: ${rawCode})`);
         console.log("===========================================================");
         console.log("  To link your phone:");
         console.log("  1. Open WhatsApp on your phone");
         console.log("  2. Settings (or ⋮) > Linked devices > Link a device");
         console.log("  3. Tap 'Link with phone number instead' at the bottom");
-        console.log(`  4. Enter this code: ${code}`);
+        console.log(`  4. Enter this code: ${rawCode}`);
+        console.log("===========================================================");
+        console.log("  ⚠️  NOTE: You have ~60 seconds to enter this code on your");
+        console.log("     phone before WhatsApp expires it!");
         console.log("===========================================================");
         console.log("");
       } catch (err) {
@@ -123,17 +166,13 @@ export async function startWhatsApp() {
 
       if (statusCode === DisconnectReason.loggedOut) {
         console.log("");
-        console.log("[wa] ❌ This session was logged out or the pairing code expired.");
-        console.log(`[wa] 🔄 Automatically resetting ${AUTH_DIR} so a fresh code can be generated on restart...`);
+        console.log("[wa] ❌ Pairing code expired or device was unlinked.");
+        console.log(`[wa] 🔄 Purging stale session files in ${AUTH_DIR} so a fresh code is generated immediately...`);
         console.log("");
-        try {
-          if (existsSync(AUTH_DIR)) {
-            rmSync(AUTH_DIR, { recursive: true, force: true });
-          }
-        } catch (e) {
-          console.error(`[wa] failed to clear ${AUTH_DIR}:`, e.message);
-        }
-        process.exit(1);
+        clearAuthDir();
+        // Allow logs to flush and give Docker 2s before restarting cleanly
+        setTimeout(() => process.exit(1), 2000);
+        return;
       }
 
       reconnectAttempts += 1;

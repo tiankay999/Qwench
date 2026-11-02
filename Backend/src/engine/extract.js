@@ -57,6 +57,9 @@ export function extract(text) {
   };
 }
 
+// Payment methods and platforms that AI sometimes reports as company names.
+const NOT_NAMES = new Set(["momo", "mobile money", "whatsapp", "telegram", "tiktok", "facebook", "instagram", "twitter", "x", "youtube", "visa", "mastercard"]);
+
 /** AI can add candidates, but each one must literally appear in the message. */
 export function mergeAiCandidates(rules, ai, text) {
   if (!ai || ai.error) return rules;
@@ -66,7 +69,7 @@ export function mergeAiCandidates(rules, ai, text) {
 
   return {
     ...rules,
-    names: unique([...rules.names, ...grounded(ai.entities_mentioned)]),
+    names: unique([...rules.names, ...grounded(ai.entities_mentioned).filter((n) => !NOT_NAMES.has(n.toLowerCase()))]),
     numbers: unique([...rules.numbers, ...grounded(ai.numbers_found).map(normalizePhone).filter((n) => /^\+233\d{9}$/.test(n))]),
     domains: unique([...rules.domains, ...grounded(ai.domains_found).map(normalizeDomain).filter(Boolean)]),
     wallets: unique([...rules.wallets, ...grounded(ai.wallets_found).map(normalizeWallet)]),

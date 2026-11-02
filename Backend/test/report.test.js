@@ -182,6 +182,12 @@ test("an AI candidate must literally appear in the message", () => {
   assert.deepEqual(merged.domains, []);
 });
 
+test("a payment method or platform isn't treated as a company name", () => {
+  const text = "Pay by MoMo to Fixture Group, or ask on WhatsApp";
+  const merged = mergeAiCandidates(extract(text), { entities_mentioned: ["MoMo", "Fixture Group", "WhatsApp"] }, text);
+  assert.deepEqual(merged.names, ["Fixture Group"]);
+});
+
 test("no AI output leaves the rule results unchanged", () => {
   const text = "pay 0241234567";
   const rules = extract(text);

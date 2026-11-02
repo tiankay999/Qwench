@@ -28,6 +28,7 @@ const SENTENCES = {
 export const NOTES = {
   linkUnread: "A link in this message could not be opened, so its page was not read.",
   imageUnread: "The image could not be read, so nothing in it was checked.",
+  imageRead: "Read from an image by AI. Please confirm the details.",
   manualReview: "A TikTok or Telegram link in this message was saved for a person to review.",
 };
 

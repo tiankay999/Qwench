@@ -7,6 +7,8 @@ process.env.PHONE_HASH_SALT = "test-only-phone-hash-salt";
 process.env.HMAC_SECRET_KEY = "test-only-hmac-secret-key";
 process.env.JWT_SECRET = "test-only-jwt-secret-value";
 process.env.AI_PROVIDER = "gemini";
+// Tests never reach the Ghana registry. The tests of it switch it on with a fake.
+process.env.GH_WHOIS_LOOKUP = "false";
 for (const key of ["GEMINI_API_KEY", "GROQ_API_KEY", "OPENAI_API_KEY"]) delete process.env[key];
 
 // The test MongoDB binary is large, so keep it out of the project and home folders.

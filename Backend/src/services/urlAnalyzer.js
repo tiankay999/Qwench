@@ -1,6 +1,7 @@
 import * as cheerio from "cheerio";
 
 import { cleanText } from "../engine/extract.js";
+import { pageSignals, spacedText } from "../engine/pageSignals.js";
 import { safeFetch } from "../lib/safeFetch.js";
 
 import { runJsonPrompt } from "./aiAnalyzer.js";
@@ -56,6 +57,7 @@ export async function scrapeUrl(url, fetchOptions = {}) {
     const finalUrl = new URL(response.finalUrl);
 
     const $ = cheerio.load(String(response.body || ""));
+    const scriptTags = "<script></script>".repeat($("script").length);
     $("script, style, noscript, template").remove();
 
     // Text a person can't see can still reach an AI or the rules, so it's taken out.
@@ -68,10 +70,12 @@ export async function scrapeUrl(url, fetchOptions = {}) {
     hidden.remove();
 
     const page = {
+      // Read from the page as a person would get it, without its hidden parts.
+      pageSignals: pageSignals(`${scriptTags}${$.html()}`),
       error: false,
       title: $("title").first().text().trim().slice(0, 300),
       metaDescription: ($('meta[name="description"]').attr("content") || "").trim().slice(0, 500),
-      bodyText: cleanText($("body").text()).replace(/\s+/g, " ").trim().slice(0, MAX_BODY),
+      bodyText: cleanText(spacedText($)).replace(/\s+/g, " ").trim().slice(0, MAX_BODY),
       hiddenText,
       links: $("a")
         .map((_, el) => $(el).attr("href"))

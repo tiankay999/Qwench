@@ -259,6 +259,18 @@ test("ordinary hidden text doesn't", async () => {
   assert.deepEqual(result.report.warning_signs, []);
 });
 
+test("words in separate elements stay separate", async () => {
+  const server = http.createServer((_req, res) => {
+    res.writeHead(200, { "content-type": "text/html" });
+    res.end("<html><body><span>Fixture</span><span>Scheme</span><p>Pay</p><p>0240000080</p></body></html>");
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address();
+  const content = await scrapeUrl(`http://page.test:${port}/`, { resolve: async () => ["127.0.0.1"], isAllowedAddress: () => true, allowedPorts: [port] });
+  server.close();
+  assert.equal(content.bodyText, "Fixture Scheme Pay 0240000080");
+});
+
 test("hidden text and the meta description can't trigger a finding", async () => {
   const { result } = await checkMessage({ urls: ["https://page.test"] }, { scrape: scrapeHidden("Fixture Scheme, pay 0240000080"), readPage: noAi });
   assert.equal(result.state, "no_record");

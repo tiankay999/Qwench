@@ -9,6 +9,7 @@
     "seed": "node src/scripts/seed.js",
     "import:reviewed": "node src/scripts/import-reviewed.js",
     "migrate:legacy": "node src/scripts/migrate-legacy.js",
+    "collect": "node src/scripts/collect.js",
     "seed:demo": "node src/scripts/seed-demo.js",
     "user:create": "node src/scripts/create-user.js",
     "test": "node --test --test-concurrency=6 \"test/**/*.test.js\""
@@ -41,7 +42,8 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.11.4",
     "nodemon": "^3.1.14",
-    "openai": "^7.45.1"
+    "openai": "^7.45.1",
+    "pdf-parse": "1.1.1"
   },
   "devDependencies": {
     "mongodb-memory-server": "^11.3.0"

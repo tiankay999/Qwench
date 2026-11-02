@@ -1,6 +1,7 @@
 import "dotenv/config";
 
 import { createApp } from "./app.js";
+import { startCollectors } from "./collectors/run.js";
 import { connectDB } from "./config/db.js";
 import { requireSecrets } from "./config/env.js";
 import { checkLlmStatus } from "./services/aiAnalyzer.js";
@@ -31,6 +32,8 @@ if (llm.ok) {
   console.log(`     Error: ${llm.error || llm.reason}`);
   console.log(`     (Risk checks will automatically fall back to rule-based scoring)`);
 }
+
+if (process.env.COLLECTORS_ENABLED === "true") startCollectors();
 
 app.listen(PORT, () => {
   console.log("");

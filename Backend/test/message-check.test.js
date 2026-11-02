@@ -346,6 +346,13 @@ test("an unknown number with several signs reads as many signs, with no status c
   assert.equal(result.tier, null);
 });
 
+test("a listed app's store link finds its record", async () => {
+  const entity = await Entity.findOne({ slug: "fixture-scheme" });
+  await Identifier.create({ entityId: entity._id, ...buildIdentifier("app_id", "play:com.fixture.loan"), origin: "notice" });
+  const { result } = await checkMessage({ text: "Install https://play.google.com/store/apps/details?id=com.fixture.loan" });
+  assert.equal(result.state, "named_in_notice");
+});
+
 test("AI can't change a status, tier or wording", async () => {
   const readImage = async () => ({ extracted_text: "Hello", state: "licensed", tier: 1, verdict: "bad", entities_mentioned: [], numbers_found: [], domains_found: [], wallets_found: [] });
   const { result } = await checkMessage({ image_base64: "eA==", mime_type: "image/png" }, { readImage });

@@ -169,7 +169,7 @@ test("sentences aren't read as domains, and short numbers aren't read as phones"
 });
 
 test("an empty message extracts nothing", () => {
-  assert.deepEqual(extract(""), { names: [], domains: [], links: [], numbers: [], wallets: [], manual_review: [] });
+  assert.deepEqual(extract(""), { names: [], domains: [], links: [], numbers: [], wallets: [], manual_review: [], app_ids: [] });
 });
 
 /* --- AI candidates ------------------------------------------------ */
@@ -292,6 +292,8 @@ for (const [text, sign] of [
   ["Buy a gift card and send the code", "The message asks for payment by crypto, gift card or a similar method."],
   ["Send bitcoin to this wallet", "The message asks for payment by crypto, gift card or a similar method."],
   ["Claim your bonus today", "The message offers bonuses or free gifts."],
+  ["The app needs access to your contacts", "The message asks for access to your contacts or personal data."],
+  ["We upload your contact list", "The message asks for access to your contacts or personal data."],
   ["Get a free gift when you join", "The message offers bonuses or free gifts."],
   ["GHS 50 sign-up bonus", "The message offers bonuses or free gifts."],
   ["You have won free airtime", "The message offers bonuses or free gifts."],
@@ -366,4 +368,17 @@ test("every report has a level and the disclaimer", () => {
 test("a report counts the signs the rules found in its text", () => {
   const report = buildReport({ state: "no_record", sources: [], text: "Guaranteed returns! Tell nobody. Refer 5 friends." });
   assert.equal(report.evidence_level.code, "many_signs");
+});
+
+/* --- App links ------------------------------------------------------------ */
+
+test("a Play Store link is read as an app, not a website to fetch", () => {
+  const out = extract("Get it: https://play.google.com/store/apps/details?id=com.Fixture.Loan&hl=en");
+  assert.deepEqual(out.app_ids, ["play:com.fixture.loan"]);
+  assert.deepEqual(out.links, []);
+  assert.deepEqual(out.domains, []);
+});
+
+test("an App Store link is read as an app", () => {
+  assert.deepEqual(extract("https://apps.apple.com/gh/app/fixture-loan/id123456789").app_ids, ["apple:123456789"]);
 });

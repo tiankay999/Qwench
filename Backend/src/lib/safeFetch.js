@@ -92,7 +92,7 @@ function parseLink(link, allowedPorts) {
   return url;
 }
 
-function fetchOnce(url, { resolve, isAllowedAddress, maxBytes, signal, accept }) {
+function fetchOnce(url, { resolve, isAllowedAddress, maxBytes, signal, accept, allowType, asBuffer }) {
   const hostname = url.hostname.replace(/^\[|\]$/g, "");
   const blockedError = () => new SafeFetchError("BLOCKED_ADDRESS", "That address can't be opened.");
 
@@ -126,7 +126,7 @@ function fetchOnce(url, { resolve, isAllowedAddress, maxBytes, signal, accept })
         }
 
         const type = response.headers["content-type"];
-        if (type && !TEXT_TYPES.test(type) && !(accept && /json/i.test(type))) {
+        if (type && !TEXT_TYPES.test(type) && !(accept && /json/i.test(type)) && !allowType?.test(type)) {
           response.destroy();
           return fail(new SafeFetchError("NOT_TEXT", "That link isn't a page that can be read."));
         }
@@ -141,7 +141,10 @@ function fetchOnce(url, { resolve, isAllowedAddress, maxBytes, signal, accept })
           }
           return chunks.push(chunk);
         });
-        response.on("end", () => done({ status, body: Buffer.concat(chunks).toString("utf8") }));
+        response.on("end", () => {
+          const bytes = Buffer.concat(chunks);
+          done({ status, body: asBuffer ? bytes : bytes.toString("utf8") });
+        });
         response.on("error", fail);
         return undefined;
       }
@@ -152,7 +155,7 @@ function fetchOnce(url, { resolve, isAllowedAddress, maxBytes, signal, accept })
 }
 
 export async function safeFetch(link, overrides = {}) {
-  const { timeoutMs, maxBytes, maxRedirects, allowedPorts, accept } = { ...DEFAULTS, ...overrides };
+  const { timeoutMs, maxBytes, maxRedirects, allowedPorts, accept, allowType, asBuffer } = { ...DEFAULTS, ...overrides };
   const resolve = overrides.resolve || defaultResolve;
   const isAllowedAddress = overrides.isAllowedAddress || isPublicAddress;
 
@@ -164,7 +167,7 @@ export async function safeFetch(link, overrides = {}) {
     let url = parseLink(link, allowedPorts);
 
     for (let hop = 0; hop <= maxRedirects; hop += 1) {
-      const result = await fetchOnce(url, { resolve, isAllowedAddress, maxBytes, signal: controller.signal, accept });
+      const result = await fetchOnce(url, { resolve, isAllowedAddress, maxBytes, signal: controller.signal, accept, allowType, asBuffer });
       if (!result.redirect) return { status: result.status, body: result.body, finalUrl: url.toString() };
       url = parseLink(new URL(result.redirect, url).toString(), allowedPorts);
     }

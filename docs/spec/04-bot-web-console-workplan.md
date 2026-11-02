@@ -20,6 +20,8 @@ styles. Dre owns the backend, and the API format is in `docs/API.md` once writte
 | 11 | Handoff | Tell Dre the screens are ready to style | Plain, working screens with shared styles |
 | 12 | Backup | Record a 60–90 second demo after styling | The video is saved in case Wi-Fi or the bot fails |
 
+**Console status:** Dre had the console built on the `console-v1` branch (`a55e5b7`), so items 7, 8 and 9 are done there. Don't start them again. It lives in `src/app/console/`, `src/components/console/` and `src/lib/console.ts`. Set `QWENCH_API_URL` to the backend's address.
+
 ## Route mapping
 
 | Old route | New route |

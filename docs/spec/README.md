@@ -19,8 +19,8 @@ Where older README text or `/api` behaviour conflicts with it, this folder wins.
 
 | Owner | Area |
 |---|---|
-| Dre | Backend, brand design, pitch design, QA |
-| Web app engineer | WhatsApp bot, Telegram bot, web app, console UI |
+| Dre | Backend, console UI, brand design, pitch design, QA |
+| Web app engineer | WhatsApp bot, Telegram bot, web app |
 | Data lead | Reviewed records, demo data |
 
 Stay in your own area. If you need something from another owner, list it for them.
@@ -65,6 +65,7 @@ Stay in your own area. If you need something from another owner, list it for the
 - **Reviewed impersonation is public:** Dre decided this on 2 November 2026. It shows as tier 2, naming the business, once a second person has reviewed it. Partner data, reports and signals stay out of public replies.
 - **Tier 2 payment-screen warnings:** only where the institution has opted in. Partner data never reaches a public reply.
 - **Appeals:** replies answer only about what is publicly shown, and never confirm or deny internal data.
+- **AI:** it only reads images and linked pages for the evidence engine. It never decides. It runs behind rules, and every check works without it. It has not yet been tested against a real provider.
 - **Evidence engine:** `src/services/evidenceEngine.js` is the only engine. `checkService.js` is deprecated.
 
 ## Code already on `main`

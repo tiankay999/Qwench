@@ -1,0 +1,12 @@
+{
+  "name": "qwench-telegram-bot",
+  "version": "1.0.0",
+  "description": "Qwench Telegram bot: sends messages to the Qwench API and shows its report",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node --env-file=.env src/index.js",
+    "test": "node --test \"test/**/*.test.js\""
+  },
+  "license": "ISC"
+}

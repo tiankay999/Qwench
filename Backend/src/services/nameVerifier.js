@@ -38,7 +38,7 @@ export function normalizeBasic(str) {
 export function normalizeHomoglyphs(str) {
   return String(str || "")
     .toLowerCase()
-    .replace(/1/g, "l")
+    .replace(/[1i|]/g, "l")
     .replace(/0/g, "o")
     .replace(/3/g, "e")
     .replace(/4/g, "a")
@@ -61,6 +61,51 @@ export function collapseRepeats(str) {
 /** Comparison key: homoglyphs folded, repeats collapsed, spaces removed. */
 function tightKey(str) {
   return collapseRepeats(normalizeHomoglyphs(str)).replace(/\s/g, "");
+}
+
+/** Words of a message, keeping the characters look-alikes are made from. */
+const messageWords = (text) =>
+  String(text || "")
+    .split(/\s+/)
+    .map((w) => w.replace(/^[^\p{L}\p{N}$@|]+|[^\p{L}\p{N}$@|]+$/gu, ""))
+    .filter(Boolean);
+
+/** Names from the list that appear in the text exactly, as whole words. */
+export function findNamesInText(text, entities, { minLength = 4 } = {}) {
+  const haystack = ` ${normalizeBasic(text)} `;
+  const found = [];
+  for (const entity of entities) {
+    const labels = [entity.name, ...(entity.aliases || [])].map(normalizeBasic).filter((l) => l.length >= minLength);
+    if (labels.some((label) => haystack.includes(` ${label} `))) found.push(entity.name);
+  }
+  return found;
+}
+
+/**
+ * Names from the list that appear in the text in disguise, such as "App1e" or
+ * "Vaultaa". A plain mention isn't a look-alike, and neither is a nearby word.
+ */
+export function findLookalikesInText(text, entities, { skip = () => false } = {}) {
+  const words = messageWords(text);
+  const found = [];
+
+  for (const entity of entities) {
+    for (const label of [entity.name, ...(entity.aliases || [])]) {
+      const basic = normalizeBasic(label);
+      const size = basic.split(" ").length;
+      const tight = tightKey(label);
+      if (tight.length < 4) continue;
+
+      for (let i = 0; i + size <= words.length; i += 1) {
+        const window = words.slice(i, i + size).join(" ");
+        if (normalizeBasic(window) !== basic && tightKey(window) === tight && !skip(window)) {
+          found.push(entity.name);
+          break;
+        }
+      }
+    }
+  }
+  return [...new Set(found)];
 }
 
 /* ------------------------------------------------------------------ *

@@ -27,7 +27,11 @@ export function createApp() {
       credentials: true,
     })
   );
-  app.use(express.json({ limit: "12mb" }));
+  // Large bodies only where images arrive. The first parser to read a body wins.
+  const imageBody = express.json({ limit: "12mb" });
+  app.use("/v1/public/check", imageBody);
+  app.use("/api/evidence/image", imageBody);
+  app.use(express.json({ limit: "100kb" }));
 
   // Simple request logger so you can watch the bot hitting the API during the demo.
   app.use((req, _res, next) => {

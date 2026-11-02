@@ -35,17 +35,22 @@ function socialLink(link) {
 export function extract(text) {
   const input = String(text || "");
   const domains = [];
+  const links = [];
   const manualReview = [];
 
   for (const link of linksIn(input.replace(WALLET, " "))) {
     const host = normalizeDomain(link);
     if (MANUAL_REVIEW_HOSTS.test(host)) manualReview.push(socialLink(link));
-    else if (host) domains.push(host);
+    else if (host) {
+      domains.push(host);
+      links.push(/^https?:\/\//i.test(link) ? link : `https://${link}`);
+    }
   }
 
   return {
     names: [],
     domains: unique(domains),
+    links: unique(links),
     numbers: unique((input.match(PHONE) || []).map(normalizePhone).filter((n) => /^\+233\d{9}$/.test(n))),
     wallets: unique((input.match(WALLET) || []).map(normalizeWallet)),
     manual_review: unique(manualReview),

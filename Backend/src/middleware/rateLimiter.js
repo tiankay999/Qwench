@@ -1,17 +1,21 @@
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 
+import { hasChannelKey } from "./channelKey.js";
 import { sendError } from "./errorHandler.js";
 
 const tooMany = (_req, res) => sendError(res, 429, "rate_limited", "Too many requests. Try again in 60 seconds.");
 
 /**
- * Public endpoints: 30 requests per minute per IP.
+ * Public endpoints: 30 requests per minute per IP. The IP is held in memory for the
+ * window and never stored. Bots all share one address, so they use the per-sender
+ * limit in channelKey.js instead.
  */
 export const publicLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 30,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: hasChannelKey,
   handler: tooMany,
 });
 

@@ -25,6 +25,14 @@ const SENTENCES = {
   demo: "Demo data.",
 };
 
+export const NOTES = {
+  linkUnread: "A link in this message could not be opened, so its page was not read.",
+  imageUnread: "The image could not be read, so nothing in it was checked.",
+  manualReview: "A TikTok or Telegram link in this message was saved for a person to review.",
+};
+
+const ALSO_CHECKED = "{value}: {sentence}";
+
 const FOOTER = {
   dated: "Data as of {date}.",
   empty: "No reviewed records are loaded yet.",
@@ -52,6 +60,8 @@ export const ALL_TEMPLATES = Object.fromEntries(
     ...Object.fromEntries(Object.entries(FOOTER).map(([k, v]) => [`footer_${k}`, v])),
     SENT_MONEY,
     RETURN_NOTE,
+    ALSO_CHECKED,
+    ...NOTES,
     ...Object.fromEntries(Object.entries(QUESTIONS).flatMap(([state, list]) => list.map((q, i) => [`question_${state}_${i}`, q]))),
     ...Object.fromEntries(WARNING_SIGN_TEMPLATES.map((sign, i) => [`warning_sign_${i}`, sign])),
   })
@@ -65,6 +75,9 @@ const PERIODS = [
   { pattern: /(\d+(?:\.\d+)?)\s*%\s*(?:a month|per month|monthly|every month|each month)\b/i, unit: "a month", perYear: 12 },
   { pattern: /(\d+(?:\.\d+)?)\s*%\s*(?:a year|per year|yearly|annually|per annum|p\.a\.)/i, unit: "a year", perYear: 1 },
 ];
+
+/** One line for something else found in the message. */
+export const alsoCheckedLine = (value, sentence) => fill(ALSO_CHECKED, { value, sentence });
 
 /** A stated return, restated per year by simple multiplication. No judgement. */
 export function returnCheck(text) {
@@ -114,10 +127,12 @@ export function buildReport({ state, entity, sources = [], foreignContext = [], 
   return {
     state_sentence: isDemo ? `${SENTENCES.demo} ${sentence}` : sentence,
     foreign_context: foreignContext.map((f) => fill(SENTENCES.foreign, f)),
+    also_checked: [],
     sources: sources.map(({ publisher, date, url }) => ({ publisher, date, url })),
     return_check: returnCheck(text),
     warning_signs: signs,
     questions_to_ask: questions,
+    notes: [],
     footer: `${dataDate ? fill(FOOTER.dated, { date: dataDate }) : FOOTER.empty} ${FOOTER.contacts}`,
   };
 }

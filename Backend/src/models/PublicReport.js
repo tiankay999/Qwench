@@ -28,6 +28,8 @@ const publicReportSchema = new mongoose.Schema(
     source: { type: String, enum: PUBLIC_REPORT_SOURCES },
     evidenceRefs: [{ type: String }],
     reviewStatus: { type: String, enum: PUBLIC_REPORT_STATUSES, default: "pending" },
+    // Many reports from one channel: worth a closer look. It changes no result.
+    volumeFlag: { type: Boolean, default: false },
     // _id of the row this came from in the old `reports` collection. Gives the
     // migration a stable key so re-running updates instead of duplicating. Absent
     // on new reports.

@@ -23,9 +23,10 @@ import {
   Signal,
   recordAudit,
 } from "../models/index.js";
-import { buildNameIndex, verifyName } from "./nameVerifier.js";
+import { buildNameIndex, findLookalikesInText, verifyName } from "./nameVerifier.js";
 
 const GHANA = "GH";
+const DOMAIN_ENDINGS = new Set(["www", "com", "net", "org", "co", "gh", "io", "info", "biz", "xyz", "tk", "ml", "ga", "cf", "gq", "top", "online", "site", "club", "app", "me", "test"]);
 const NUMBER_TYPES = ["momo_number", "bank_account"];
 
 const isLive = (record, now) => record.status === "active" && (!record.endsOn || new Date(record.endsOn) > now);
@@ -70,6 +71,44 @@ async function rankByRecordWeight(candidates) {
   return best;
 }
 
+/** Entities with a live record. Nothing else can ever be named or suggested. */
+export async function reviewedEntities({ now = new Date(), fuzzyOnly = false } = {}) {
+  const records = await Record.find({ status: "active" }).select("entityId type status endsOn").lean();
+  const statusFor = new Map();
+  for (const r of records) {
+    if (isLive(r, now) && VERIFIER_STATUS[r.type] && !statusFor.has(String(r.entityId))) {
+      statusFor.set(String(r.entityId), VERIFIER_STATUS[r.type]);
+    }
+  }
+
+  const entities = await Entity.find({ _id: { $in: [...statusFor.keys()] }, kind: { $ne: "authority" }, ...(fuzzyOnly ? { allowFuzzy: true } : {}) })
+    .select("name aliases slug")
+    .lean();
+
+  return entities
+    .filter((e) => !EXACT_MATCH_ONLY.has(normalizeName(e.name)))
+    .map((e) => ({ name: e.name, aliases: e.aliases || [], slug: e.slug, status: statusFor.get(String(e._id)) }));
+}
+
+/** Words of a domain, without its ending: "app1e-invest.com.gh" becomes "app1e invest". */
+function domainWords(domain) {
+  return domain
+    .split(".")
+    .filter((label) => !DOMAIN_ENDINGS.has(label))
+    .join(" ")
+    .replace(/-/g, " ");
+}
+
+/** A reviewed name a domain looks like. Only ever a suggestion. */
+async function closeDomain(domain, now) {
+  const words = domainWords(domain);
+  if (!words) return null;
+
+  const named = await reviewedEntities({ now, fuzzyOnly: true });
+  const skip = (word) => EXACT_MATCH_ONLY.has(normalizeName(word));
+  return findLookalikesInText(words, named, { skip })[0] || closeName(words, now);
+}
+
 const VERIFIER_STATUS = { warning: "blacklisted", sanction: "blacklisted", licence: "licensed", sandbox: "sandbox", registration: "licensed" };
 
 /**
@@ -81,14 +120,7 @@ const VERIFIER_STATUS = { warning: "blacklisted", sanction: "blacklisted", licen
 async function closeName(query, now) {
   if (EXACT_MATCH_ONLY.has(normalizeName(query))) return null;
 
-  const entities = await Entity.find({ allowFuzzy: true }).select("name aliases slug").lean();
-  const named = [];
-  for (const entity of entities) {
-    if (EXACT_MATCH_ONLY.has(normalizeName(entity.name))) continue;
-    const records = await Record.find({ entityId: entity._id, status: "active" }).select("type status endsOn").lean();
-    const live = records.find((r) => isLive(r, now) && VERIFIER_STATUS[r.type]);
-    if (live) named.push({ name: entity.name, aliases: entity.aliases || [], slug: entity.slug, status: VERIFIER_STATUS[live.type] });
-  }
+  const named = await reviewedEntities({ now, fuzzyOnly: true });
   if (!named.length) return null;
 
   const verdict = await verifyName(query, { index: buildNameIndex(named, { threshold: 0.3 }), strict: true });
@@ -248,7 +280,7 @@ export function determineSuggestedAction(tier, { allowedUse, newPayee, amountGhs
  * The flow
  * ------------------------------------------------------------------ */
 
-async function dataDate() {
+export async function dataDate() {
   const latest = await Record.findOne({ status: "active" }).sort({ updatedAt: -1 }).select("updatedAt").lean();
   return latest ? latest.updatedAt.toISOString().split("T")[0] : null;
 }
@@ -333,6 +365,7 @@ export async function evaluate(input) {
     new_payee: newPayee = false,
     skip_confirmation: skipConfirmation = false,
     advertised_as: advertisedAs,
+    suggested_name: suggestedName,
     audience = "public",
     org = null,
   } = input;
@@ -363,7 +396,13 @@ export async function evaluate(input) {
   const normalized = normalizeIdentifier(lookupType, value);
   const valueHash = normalized ? hashIdentifier(lookupType, normalized) : "";
   result.value_hash = valueHash;
-  if (!normalized) return finish(result, context);
+  if (!normalized) {
+    if (suggestedName) {
+      result.needs_confirmation = true;
+      result.did_you_mean = { suggested_entity: suggestedName };
+    }
+    return finish(result, context);
+  }
 
   await flagAdvertisedNumber(advertisedAs, lookupType, valueHash);
 
@@ -384,6 +423,20 @@ export async function evaluate(input) {
         result.did_you_mean = { suggested_entity: suggested };
       }
     }
+  }
+
+  if (!entity && lookupType === "domain" && !skipConfirmation) {
+    const suggested = await closeDomain(normalized, now);
+    if (suggested) {
+      result.needs_confirmation = true;
+      result.did_you_mean = { suggested_entity: suggested };
+    }
+  }
+
+  // A look-alike found elsewhere in the message, offered if nothing else matched.
+  if (!entity && !result.did_you_mean && suggestedName) {
+    result.needs_confirmation = true;
+    result.did_you_mean = { suggested_entity: suggestedName };
   }
 
   const records = entity

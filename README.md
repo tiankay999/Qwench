@@ -100,6 +100,9 @@ their full registered names.
 
 ## API
 
+The `/v1` API is documented in [Backend/docs/API.md](Backend/docs/API.md), with curl examples and the mapping from the old `/api` routes.
+
+
 | Method | Route                   | Purpose                                        |
 | ------ | ----------------------- | ---------------------------------------------- |
 | POST   | `/api/verify-name`      | anti-spoofing check; runs before `/api/check`  |

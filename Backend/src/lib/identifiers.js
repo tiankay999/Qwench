@@ -163,9 +163,9 @@ export function buildIdentifier(type, raw, extra = {}) {
  */
 export function hashSender(rawSender, date = new Date()) {
   const day = date.toISOString().slice(0, 10);
-  const normalized = normalizePhone(rawSender);
-  if (!normalized) return "";
-  return crypto.createHmac("sha256", keyFor("phone")).update(`sender:${day}:${normalized}`).digest("hex");
+  const reference = String(rawSender || "").trim();
+  if (!reference) return "";
+  return crypto.createHmac("sha256", keyFor("phone")).update(`sender:${day}:${reference}`).digest("hex");
 }
 
 /** "2026-11-01T14" — the aggregation bucket used by Check and Signal. */

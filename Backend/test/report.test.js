@@ -52,7 +52,7 @@ test("banned words: an impersonation report", () => {
 
 test("every report has the fixed parts, in order", () => {
   const report = buildReport({ ...SAMPLE, state: "named_in_notice" });
-  assert.deepEqual(Object.keys(report), ["state_sentence", "foreign_context", "sources", "return_check", "warning_signs", "questions_to_ask", "footer"]);
+  assert.deepEqual(Object.keys(report), ["state_sentence", "foreign_context", "also_checked", "sources", "return_check", "warning_signs", "questions_to_ask", "notes", "footer"]);
 });
 
 test("no record says it isn't a clean result", () => {
@@ -169,7 +169,7 @@ test("sentences aren't read as domains, and short numbers aren't read as phones"
 });
 
 test("an empty message extracts nothing", () => {
-  assert.deepEqual(extract(""), { names: [], domains: [], numbers: [], wallets: [], manual_review: [] });
+  assert.deepEqual(extract(""), { names: [], domains: [], links: [], numbers: [], wallets: [], manual_review: [] });
 });
 
 /* --- AI candidates ------------------------------------------------ */

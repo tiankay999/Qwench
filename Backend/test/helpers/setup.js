@@ -12,6 +12,12 @@ for (const key of ["GEMINI_API_KEY", "GROQ_API_KEY", "OPENAI_API_KEY"]) delete p
 // The test MongoDB binary is large, so keep it out of the project and home folders.
 process.env.MONGOMS_DOWNLOAD_DIR ||= path.join(os.tmpdir(), "qwench-mongo");
 
+// Tests never reach the internet. Every name a test tries to fetch resolves to a
+// blocked address, so the link fetcher refuses it. Tests of real fetching use
+// their own resolver: see test/safe-fetch.test.js.
+const { default: dnsPromises } = await import("node:dns/promises");
+dnsPromises.lookup = async () => [{ address: "127.0.0.1", family: 4 }];
+
 const { MongoMemoryServer } = await import("mongodb-memory-server");
 const { default: mongoose } = await import("mongoose");
 

@@ -139,7 +139,7 @@ export async function extractFromImage(base64Image, mimeType = "image/jpeg", { c
     );
     return out;
   } catch (err) {
-    console.error(`[extract] image extraction failed: ${err.message}`);
+    console.error(`[extract] image extraction failed: ${err.name}`);
     return { ...EMPTY, error: err.message };
   }
 }
@@ -167,12 +167,12 @@ export async function extractFromUrl(url, { callProvider, page } = {}) {
     });
 
     const out = shape(parsed, content.bodyText);
-    console.log(`[extract] url via ${provider}/${model}: ${out.entities_mentioned.length} name(s) on ${url}`);
+    console.log(`[extract] url via ${provider}/${model}: ${out.entities_mentioned.length} name(s)`);
 
     // The scraper's observations win over the model's.
     return { ...out, ...observed };
   } catch (err) {
-    console.error(`[extract] url extraction failed for ${url}: ${err.message}`);
+    console.error(`[extract] url extraction failed: ${err.name}`);
     return { ...EMPTY, ...observed, extracted_text: (content.bodyText || "").slice(0, 2000), error: err.message };
   }
 }

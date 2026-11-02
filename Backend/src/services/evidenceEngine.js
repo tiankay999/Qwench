@@ -5,9 +5,14 @@
 // There is no score, no verdict, no colour and no advice in anything this
 // returns. A result is a legal state, an evidence tier, reason codes and the
 // sources behind them. If a claim is not backed by a Record that cites a
-// Source, it does not appear.
+// Source, it does not appear. All wording comes from src/engine/report.js.
 
+import { buildReport, returnCheck } from "../engine/report.js";
+import { warningSigns } from "../engine/extract.js";
+import { EXACT_MATCH_ONLY, hashIdentifier, normalizeIdentifier, normalizeName } from "../lib/identifiers.js";
 import {
+  CASE_TRIGGERS,
+  Case,
   Contribution,
   Entity,
   Identifier,
@@ -16,475 +21,33 @@ import {
   Record,
   Relation,
   Signal,
+  recordAudit,
 } from "../models/index.js";
-import { EXACT_MATCH_ONLY, hashIdentifier, normalizeIdentifier, normalizeName, slugifyEntity } from "../lib/identifiers.js";
-import { verifyName } from "./nameVerifier.js";
+import { buildNameIndex, findLookalikesInText, verifyName } from "./nameVerifier.js";
+
+const GHANA = "GH";
+const DOMAIN_ENDINGS = new Set(["www", "com", "net", "org", "co", "gh", "io", "info", "biz", "xyz", "tk", "ml", "ga", "cf", "gq", "top", "online", "site", "club", "app", "me", "test"]);
+const NUMBER_TYPES = ["momo_number", "bank_account"];
+
+const isLive = (record, now) => record.status === "active" && (!record.endsOn || new Date(record.endsOn) > now);
+const isGhanaFinding = (r) => r.type === "sanction" || (r.type === "warning" && (r.jurisdiction || GHANA) === GHANA);
+const isForeign = (r) => r.type === "foreign_alert" || (r.type === "warning" && (r.jurisdiction || GHANA) !== GHANA);
 
 /* ------------------------------------------------------------------ *
  * Step 1 — Extract
  * ------------------------------------------------------------------ */
 
-/**
- * Pull the thing to look up out of whatever the user sent.
- *
- * Rules only. The AI extractor (src/services/aiExtractor.js) handles images
- * and pages, and feeds its findings back through here -- it never decides.
- */
+/** Work out what to look up. A pasted link is looked up on its domain. */
 export function extractIdentifiers(recipient, type) {
   const raw = String(recipient || "").trim();
-
-  // A pasted link is looked up on its domain.
-  if (type === "url" || type === "domain") {
-    return { value: raw, lookupType: "domain" };
-  }
-
-  // A bare URL sent as a name is still a link.
-  if (type === "name" && /^https?:\/\//i.test(raw)) {
-    return { value: raw, lookupType: "domain" };
-  }
-
+  if (type === "url" || type === "domain") return { value: raw, lookupType: "domain" };
+  if (type === "name" && /^https?:\/\//i.test(raw)) return { value: raw, lookupType: "domain" };
   return { value: raw, lookupType: type };
 }
 
 /* ------------------------------------------------------------------ *
- * Step 4 — Legal state
+ * Step 3 — Match
  * ------------------------------------------------------------------ */
-
-/** Priority order: named_in_notice wins over everything. */
-export function determineState(records) {
-  if (records.some((r) => ["warning", "sanction", "foreign_alert"].includes(r.type) && r.status === "active")) {
-    return "named_in_notice";
-  }
-  if (records.some((r) => r.type === "licence" && r.status === "active")) return "licensed";
-  if (records.some((r) => r.type === "sandbox" && r.status === "active")) return "sandbox";
-  if (records.some((r) => r.type === "registration" && r.status === "active")) return "registered";
-  return "no_record";
-}
-
-/* ------------------------------------------------------------------ *
- * Step 6 — Evidence tier
- * ------------------------------------------------------------------ */
-
-/**
- * How well evidenced the claim is — not how bad it looks.
- *
- *   1  a regulator published it
- *   2  a member institution confirmed it, or a reviewed impersonation
- *   3  three or more confirmed independent public reports
- *   4  rising check volume only
- *   null  nothing that meets a bar
- */
-export async function determineTier(entityId, records, valueHash, entitySlug) {
-  if (records.some((r) => ["warning", "sanction", "foreign_alert"].includes(r.type) && r.status === "active")) {
-    return 1;
-  }
-
-  const [partnerConfirmed, reviewedImpersonation] = await Promise.all([
-    Contribution.countDocuments({ "identifiers.valueHash": valueHash, reviewStatus: "reviewed" }),
-    Relation.countDocuments({ fromEntity: entityId, type: "impersonates", status: "active" }),
-  ]);
-  if (partnerConfirmed > 0 || reviewedImpersonation > 0) return 2;
-
-  // Only reports a reviewer has confirmed count. Twenty unreviewed reports
-  // from one angry sender are not three independent sources.
-  const confirmedReports = await PublicReport.countDocuments({
-    "identifiers.valueHash": valueHash,
-    reviewStatus: "confirmed",
-  });
-  if (confirmedReports >= 3) return 3;
-
-  // Signal keys are written by different producers as the entity id, the
-  // entity slug, or the identifier hash. Accept any of them.
-  const signalKeys = [entityId ? String(entityId) : null, entitySlug, valueHash].filter(Boolean);
-  const signal = await Signal.findOne({
-    key: { $in: signalKeys },
-    anomalyFlag: true,
-    reviewStatus: { $in: ["pending", "reviewed"] },
-  });
-  if (signal) return 4;
-
-  return null;
-}
-
-/* ------------------------------------------------------------------ *
- * Step 8 — Action and permitted use
- * ------------------------------------------------------------------ */
-
-export function determineSuggestedAction(tier, newPayee, amountGhs) {
-  if (tier === 1) return "warn";
-  if (tier === 2 && (newPayee || (amountGhs && amountGhs > 500))) return "warn_or_confirmation_call";
-  if (tier === 2) return "warn";
-  if (tier === 3) return "internal_review";
-  if (tier === 4) return "watch";
-  return "none";
-}
-
-/**
- * Only a regulator-grade finding may be repeated to an end customer.
- * Everything thinner is for the institution to act on internally.
- */
-export function determineAllowedUse(state, tier) {
-  if (tier === 1) return "customer_warning";
-  if (tier === 2) return "internal_only";
-  if (tier === 3 || tier === 4) return "internal_only";
-  return null;
-}
-
-/* ------------------------------------------------------------------ *
- * Return promises
- * ------------------------------------------------------------------ */
-
-/**
- * SEC Ghana cited these rates as fraud indicators in Notice
- * SEC/PN/002/07/2025. This reports what was claimed against that published
- * threshold; it does not judge the scheme.
- */
-export function analyzeReturnPromise(terms) {
-  if (!terms) return null;
-  const lower = String(terms).toLowerCase();
-
-  const dailyMatch = lower.match(/(\d+(?:\.\d+)?)\s*%?\s*(daily|per day|a day)/);
-  if (dailyMatch) {
-    const dailyRate = parseFloat(dailyMatch[1]);
-    const monthlyEquiv = dailyRate * 30;
-    return {
-      claimed: `${dailyRate}% daily`,
-      monthly_equivalent: `${monthlyEquiv.toFixed(0)}% monthly`,
-      warning: `Claims ${dailyRate}% daily returns (${monthlyEquiv.toFixed(0)}% monthly) — SEC Ghana cites returns above 6% monthly as a fraud indicator`,
-    };
-  }
-
-  const monthlyMatch = lower.match(/(\d+(?:\.\d+)?)\s*%?\s*(monthly|per month|a month|\/month)/);
-  if (monthlyMatch) {
-    const monthlyRate = parseFloat(monthlyMatch[1]);
-    if (monthlyRate >= 6) {
-      let severity = "fraud indicator";
-      if (monthlyRate >= 70) severity = "maximum fraud indicator";
-      else if (monthlyRate >= 40) severity = "very high fraud indicator";
-      else if (monthlyRate >= 20) severity = "high fraud indicator";
-      else if (monthlyRate >= 10) severity = "significant fraud indicator";
-
-      return {
-        claimed: `${monthlyRate}% monthly`,
-        warning: `Claims ${monthlyRate}% monthly returns — SEC Ghana cites this as a ${severity} (Notice SEC/PN/002/07/2025)`,
-      };
-    }
-  }
-
-  if (/\b(guaranteed|fixed|assured|certain|risk.?free)\b/i.test(terms)) {
-    return {
-      claimed: String(terms).slice(0, 200),
-      warning: "Claims guaranteed or fixed returns — no legitimate investment guarantees a return",
-    };
-  }
-
-  if (/\b(complete tasks?|watch videos?|click|earn per task)\b/i.test(terms)) {
-    return {
-      claimed: String(terms).slice(0, 200),
-      warning: "Task-based earning scheme — a common pattern in fraudulent platforms",
-    };
-  }
-
-  return null;
-}
-
-/* ------------------------------------------------------------------ *
- * Questions — fixed templates, never generated
- * ------------------------------------------------------------------ */
-
-export function buildQuestionsToAsk(state, warningSignCount = 0) {
-  const questions = [];
-
-  if (state === "named_in_notice") {
-    questions.push("Has anyone asked you to recruit others or pay to join?");
-    questions.push("Were you contacted through WhatsApp, Telegram, or social media?");
-  }
-
-  if (state === "no_record") {
-    questions.push("Can you find their SEC Ghana licence number on their website?");
-    questions.push("Do they have a physical office you can visit?");
-    questions.push("Have they promised specific returns or guaranteed profits?");
-  }
-
-  if (state === "sandbox") {
-    questions.push("Are they asking you to invest directly, or through their regulated platform?");
-    questions.push("Sandbox approval is provisional (12 months) — are they presenting it as a full licence?");
-  }
-
-  if (warningSignCount > 2) {
-    questions.push("Have you already sent money? If so, contact CSA Ghana (292) and your bank immediately.");
-  }
-
-  return questions;
-}
-
-/* ------------------------------------------------------------------ *
- * The 9-step flow
- * ------------------------------------------------------------------ */
-
-export async function evaluate(input) {
-  // `skip_confirmation` is set once the caller has already asked the user which
-  // name they meant. Asking again would loop them through the same question.
-  const { recipient, type, amount_ghs: amountGhs, new_payee: newPayee = false, skip_confirmation: skipConfirmation = false } = input;
-
-  const result = {
-    match: false,
-    entity: null,
-    entity_id: null,
-    entity_slug: null,
-    state: "no_record",
-    tier: null,
-    reason_codes: [],
-    sources: [],
-    allowed_use: null,
-    suggested_action: "none",
-    warning_signs: [],
-    return_check: null,
-    questions_to_ask: [],
-    checked_at: new Date().toISOString(),
-  };
-
-  /* --- 1. Extract ------------------------------------------------- */
-  const extracted = extractIdentifiers(recipient, type);
-
-  /* --- 2. Normalise ----------------------------------------------- */
-  const normalized = normalizeIdentifier(extracted.lookupType, extracted.value);
-  const valueHash = normalized ? hashIdentifier(extracted.lookupType, normalized) : "";
-  result.value_hash = valueHash;
-  result.normalized = normalized;
-
-  if (!normalized) {
-    result.questions_to_ask = buildQuestionsToAsk("no_record", 0);
-    return result;
-  }
-
-  /* --- 3. Match --------------------------------------------------- */
-  let matchedEntity = null;
-  // More than one entity can claim the same identifier -- a scheme and the
-  // business it is impersonating, or a duplicate import. Picking whichever row
-  // Mongo returns first can silently resolve to the one with nothing on file,
-  // so choose the entity carrying the most significant active record.
-  const candidates = await Identifier.find({ valueHash, status: "active" }).lean();
-  let matchedIdentifier = candidates[0] || null;
-
-  if (candidates.length > 1) {
-    const ranked = await rankByRecordWeight(candidates);
-    matchedIdentifier = ranked.identifier;
-    matchedEntity = ranked.entity;
-    console.log(`[evidence] ${candidates.length} entities claim this identifier — resolved to "${matchedEntity?.name}"`);
-  } else if (matchedIdentifier) {
-    matchedEntity = await Entity.findById(matchedIdentifier.entityId).lean();
-  }
-
-  if (!matchedEntity && extracted.lookupType === "name") {
-    // 3b. Exact, case-insensitive, on the entity's own name or aliases.
-    matchedEntity = await Entity.findOne({
-      $or: [
-        { name: new RegExp(`^${escapeRegex(normalized)}$`, "i") },
-        { aliases: new RegExp(`^${escapeRegex(normalized)}$`, "i") },
-      ],
-    }).lean();
-
-    if (!matchedEntity) {
-      // A name on the protected list is matched exactly or not at all, so a
-      // real global brand is never pulled into a Ghanaian notice by a near
-      // miss ("Darazz" must not resolve to "Daraz").
-      if (EXACT_MATCH_ONLY.has(normalizeName(normalized))) {
-        result.questions_to_ask = buildQuestionsToAsk("no_record", 0);
-        return result;
-      }
-
-      const fuzzy = await verifyName(recipient).catch(() => null);
-
-      if (fuzzy?.decision === "exact") {
-        matchedEntity = await entityFromVerifierMatch(fuzzy.match);
-      } else if (fuzzy?.isSameEntity && fuzzy.match) {
-        // Only ordinary corporate furniture was added ("Databank Ghana Ltd"),
-        // so this is that company. Treating it as unknown would send someone
-        // asking about a licensed firm down the unknown-entity path.
-        matchedEntity = await entityFromVerifierMatch(fuzzy.match);
-      } else if (fuzzy?.autoFlagged) {
-        // A dressed-up version of a name already in a notice. No question is
-        // asked: adding a word does not make it a different scheme.
-        matchedEntity = await entityFromVerifierMatch(fuzzy.match);
-        if (matchedEntity) {
-          result.warning_signs.push(
-            `Name variant of "${fuzzy.match.name}" — ${(fuzzy.spoofIndicators || []).join(", ")}`
-          );
-        }
-      } else if (fuzzy?.needsConfirmation && !skipConfirmation) {
-        // Close to something registered, but not it. Ask before judging.
-        return {
-          ...result,
-          needs_confirmation: true,
-          did_you_mean: {
-            original_query: recipient,
-            suggested_entity: fuzzy.match?.name || null,
-            suggested_entity_status: fuzzy.match?.status || null,
-            similarity_score: fuzzy.similarity ?? null,
-          },
-        };
-      }
-    }
-  }
-
-  /* --- 3c. Nothing matched ---------------------------------------- */
-  if (!matchedEntity) {
-    const [reportCount, signal] = await Promise.all([
-      PublicReport.countDocuments({ "identifiers.valueHash": valueHash, reviewStatus: { $ne: "dismissed" } }),
-      Signal.findOne({ key: valueHash, anomalyFlag: true }).lean(),
-    ]);
-
-    if (signal) {
-      result.tier = 4;
-      result.reason_codes.push("CHECK_SPIKE");
-      result.suggested_action = "watch";
-      result.allowed_use = determineAllowedUse("no_record", 4);
-    }
-
-    // Unreviewed public reports open a review and change nothing publicly.
-    // A single report, or twenty from one place, is not evidence.
-    result.pending_reports = reportCount;
-    result.questions_to_ask = buildQuestionsToAsk("no_record", result.warning_signs.length);
-    return result;
-  }
-
-  /* --- 4. Legal state --------------------------------------------- */
-  result.match = true;
-  result.entity = matchedEntity.name;
-  result.entity_id = matchedEntity._id;
-  result.entity_slug = matchedEntity.slug;
-
-  const records = await Record.find({ entityId: matchedEntity._id, status: "active" }).populate("sourceId").lean();
-
-  // Records waiting on four-eyes review are deliberately not used for a
-  // verdict, but their existence has to be reported. Otherwise an entity we
-  // demonstrably hold a notice for reads as "nothing known", and Qwench ends
-  // up asking for SEC Ghana's own licence number.
-  result.pending_records = await Record.countDocuments({
-    entityId: matchedEntity._id,
-    status: "under_review",
-  });
-
-  result.state = determineState(records);
-  result.sources = records
-    .filter((r) => r.sourceId)
-    .map((r) => ({
-      publisher: r.sourceId.publisher,
-      date: r.sourceId.publishedOn ? new Date(r.sourceId.publishedOn).toISOString().split("T")[0] : null,
-      url: r.sourceId.url || null,
-    }));
-
-  /* --- 5. Merchant registry --------------------------------------- */
-  const impersonations = await Relation.find({
-    fromEntity: matchedEntity._id,
-    type: "impersonates",
-    status: "active",
-  })
-    .populate("toEntity")
-    .lean();
-
-  for (const rel of impersonations) {
-    if (!rel.toEntity) continue;
-    const merchant = await Merchant.findOne({ entityId: rel.toEntity._id, status: "verified" }).select("_id").lean();
-    if (merchant) {
-      result.warning_signs.push(`Impersonates registered business "${rel.toEntity.name}"`);
-      pushCode(result, "ADVERTISED_AS_BUSINESS_NOT_REGISTERED");
-    }
-  }
-
-  if (matchedIdentifier && ["momo_number", "bank_account"].includes(extracted.lookupType)) {
-    const merchantOwner = await Merchant.findOne({
-      officialIdentifiers: matchedIdentifier._id,
-      status: "verified",
-    })
-      .select("_id")
-      .lean();
-
-    if (!merchantOwner) {
-      const claims = await Relation.countDocuments({
-        fromEntity: matchedEntity._id,
-        type: "claims_affiliation",
-        status: "active",
-      });
-      if (claims > 0) {
-        pushCode(result, "ADVERTISED_AS_BUSINESS_NOT_REGISTERED");
-        result.warning_signs.push("Advertises as a registered business but the number is not in the merchant registry");
-      }
-    }
-  }
-
-  /* --- 6. Evidence tier ------------------------------------------- */
-  result.tier = await determineTier(matchedEntity._id, records, valueHash, matchedEntity.slug);
-
-  if (result.tier === 1) {
-    if (records.some((r) => r.type === "warning" || r.type === "foreign_alert")) pushCode(result, "REGULATOR_NOTICE");
-    if (records.some((r) => r.type === "sanction")) pushCode(result, "SANCTIONS_LIST");
-  } else if (result.tier === 2) {
-    const partnerConfirmed = await Contribution.countDocuments({
-      "identifiers.valueHash": valueHash,
-      reviewStatus: "reviewed",
-    });
-    if (partnerConfirmed > 0) pushCode(result, "PARTNER_CONFIRMED");
-
-    const impersonation = await Relation.countDocuments({
-      fromEntity: matchedEntity._id,
-      type: "impersonates",
-      status: "active",
-    });
-    if (impersonation > 0) pushCode(result, "ADVERTISED_AS_BUSINESS_NOT_REGISTERED");
-  } else if (result.tier === 3) {
-    pushCode(result, "CORROBORATED_REPORTS");
-  } else if (result.tier === 4) {
-    pushCode(result, "CHECK_SPIKE");
-  }
-
-  /* --- 7. Context -------------------------------------------------- */
-  const foreign = records.filter((r) => r.type === "foreign_alert");
-  for (const r of foreign) {
-    result.warning_signs.push(`Found abroad: ${r.jurisdiction} — ${r.sourceId?.publisher || "unknown publisher"}`);
-  }
-
-  // Return promises come from what members contributed about this identifier.
-  const contributions = await Contribution.find({ "identifiers.valueHash": valueHash }).select("terms").lean();
-  for (const contrib of contributions) {
-    const returnCheck = analyzeReturnPromise(contrib.terms);
-    if (returnCheck) {
-      result.return_check = returnCheck;
-      result.warning_signs.push(returnCheck.warning);
-      break;
-    }
-  }
-
-  const renamedFrom = await Relation.find({ toEntity: matchedEntity._id, type: "renamed_from", status: "active" })
-    .populate("fromEntity")
-    .lean();
-  for (const r of renamedFrom) {
-    if (r.fromEntity) result.warning_signs.push(`Previously known as "${r.fromEntity.name}"`);
-  }
-
-  const sameOperator = await Relation.countDocuments({
-    $or: [{ fromEntity: matchedEntity._id }, { toEntity: matchedEntity._id }],
-    type: "same_operator",
-    status: "active",
-  });
-  if (sameOperator > 0) result.warning_signs.push("Linked to other flagged entities under the same operator");
-
-  /* --- 8. Build the reply (templates only) ------------------------- */
-  result.suggested_action = determineSuggestedAction(result.tier, newPayee, amountGhs);
-  result.allowed_use = determineAllowedUse(result.state, result.tier);
-  // Questions that assume we know nothing are wrong when a record is simply
-  // awaiting sign-off, so they are withheld in that case.
-  result.questions_to_ask =
-    result.state === "no_record" && result.pending_records > 0
-      ? []
-      : buildQuestionsToAsk(result.state, result.warning_signs.length);
-
-  /* --- 9. Logging is the route's job (logCheck) -------------------- */
-  return result;
-}
-
-/* ------------------------------------------------------------------ */
 
 // A notice outranks a licence, which outranks sandbox, and so on. Used only to
 // break a tie between entities claiming the same identifier.
@@ -508,22 +71,429 @@ async function rankByRecordWeight(candidates) {
   return best;
 }
 
-/** The name verifier works over the curated register; map its hit to an Entity. */
-async function entityFromVerifierMatch(match) {
-  if (!match?.name) return null;
-  const slug = slugifyEntity(match.name);
-  return (
-    (await Entity.findOne({ slug }).lean()) ||
-    (await Entity.findOne({ name: new RegExp(`^${escapeRegex(match.name)}$`, "i") }).lean())
-  );
+/** Entities with a live record. Nothing else can ever be named or suggested. */
+export async function reviewedEntities({ now = new Date(), fuzzyOnly = false } = {}) {
+  const records = await Record.find({ status: "active" }).select("entityId type status endsOn").lean();
+  const statusFor = new Map();
+  for (const r of records) {
+    if (isLive(r, now) && VERIFIER_STATUS[r.type] && !statusFor.has(String(r.entityId))) {
+      statusFor.set(String(r.entityId), VERIFIER_STATUS[r.type]);
+    }
+  }
+
+  const entities = await Entity.find({ _id: { $in: [...statusFor.keys()] }, kind: { $ne: "authority" }, ...(fuzzyOnly ? { allowFuzzy: true } : {}) })
+    .select("name aliases slug")
+    .lean();
+
+  return entities
+    .filter((e) => !EXACT_MATCH_ONLY.has(normalizeName(e.name)))
+    .map((e) => ({ name: e.name, aliases: e.aliases || [], slug: e.slug, status: statusFor.get(String(e._id)) }));
 }
 
-function pushCode(result, code) {
-  if (!result.reason_codes.includes(code)) result.reason_codes.push(code);
+/** Words of a domain, without its ending: "app1e-invest.com.gh" becomes "app1e invest". */
+function domainWords(domain) {
+  return domain
+    .split(".")
+    .filter((label) => !DOMAIN_ENDINGS.has(label))
+    .join(" ")
+    .replace(/-/g, " ");
+}
+
+/** A reviewed name a domain looks like. Only ever a suggestion. */
+async function closeDomain(domain, now) {
+  const words = domainWords(domain);
+  if (!words) return null;
+
+  const named = await reviewedEntities({ now, fuzzyOnly: true });
+  const skip = (word) => EXACT_MATCH_ONLY.has(normalizeName(word));
+  return findLookalikesInText(words, named, { skip })[0] || closeName(words, now);
+}
+
+const VERIFIER_STATUS = { warning: "blacklisted", sanction: "blacklisted", licence: "licensed", sandbox: "sandbox", registration: "licensed" };
+
+/**
+ * A reviewed entity whose name is close to the query, or null.
+ *
+ * Only entities with allowFuzzy and a live record are considered, so nothing
+ * unreviewed can ever be suggested. A close name is only ever a suggestion.
+ */
+async function closeName(query, now) {
+  if (EXACT_MATCH_ONLY.has(normalizeName(query))) return null;
+
+  const named = await reviewedEntities({ now, fuzzyOnly: true });
+  if (!named.length) return null;
+
+  const verdict = await verifyName(query, { index: buildNameIndex(named, { threshold: 0.3 }), strict: true });
+  const close =
+    ["exact", "blacklist_variant", "spoofing_alert", "legit_lookalike"].includes(verdict.decision) ||
+    (verdict.decision === "soft_warning" && verdict.isSameEntity);
+  return close ? verdict.match?.name || null : null;
 }
 
 function escapeRegex(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/* ------------------------------------------------------------------ *
+ * Step 4 — Legal state
+ * ------------------------------------------------------------------ */
+
+/** First match wins. Pass live records only. */
+export function determineState(records, entity) {
+  if (records.some(isGhanaFinding)) return "named_in_notice";
+  if (entity?.kind === "authority") return "authority";
+  if (records.some((r) => r.type === "licence")) return "licensed";
+  if (records.some((r) => r.type === "sandbox")) return "sandbox";
+  if (records.some((r) => r.type === "registration")) return "registered";
+  return "no_record";
+}
+
+/* ------------------------------------------------------------------ *
+ * Step 5 — Merchant registry
+ * ------------------------------------------------------------------ */
+
+/** Who registered this number, if anyone. Absence is never a claim. */
+async function merchantForNumber(valueHash) {
+  const ids = await Identifier.find({ valueHash, status: "active" }).select("_id").lean();
+  if (!ids.length) return null;
+  return Merchant.findOne({ officialIdentifiers: { $in: ids.map((i) => i._id) }, status: "verified" })
+    .select("legalName verifiedAt isDemo")
+    .lean();
+}
+
+/**
+ * A number advertised under a registered business's name that isn't one of its
+ * numbers goes to a person. It changes no result until someone has reviewed it.
+ */
+async function flagAdvertisedNumber(advertisedAs, type, valueHash) {
+  if (!advertisedAs || !NUMBER_TYPES.includes(type)) return;
+
+  const merchant = await Merchant.findOne({
+    legalName: new RegExp(`^${escapeRegex(String(advertisedAs).trim())}$`, "i"),
+    status: "verified",
+  })
+    .select("officialIdentifiers isDemo")
+    .lean();
+  if (!merchant) return;
+
+  const isTheirs = await Identifier.exists({ _id: { $in: merchant.officialIdentifiers }, valueHash });
+  if (isTheirs) return;
+
+  const open = await Case.exists({ type: "impersonation", "identifiers.valueHash": valueHash, status: { $in: ["open", "under_review"] } });
+  if (open) return;
+
+  try {
+    const created = await Case.create({
+      caseNumber: await Case.nextCaseNumber(),
+      type: "impersonation",
+      trigger: CASE_TRIGGERS.REGISTERED_NAME_MISUSE,
+      identifiers: [{ type, valueHash }],
+      isDemo: Boolean(merchant.isDemo),
+    });
+    await recordAudit({ actor: "engine", action: "case.open", target: `Case:${created._id}`, after: { trigger: created.trigger } });
+  } catch (err) {
+    // A check must not fail because a review couldn't open.
+    console.error(`[evidence] could not open a review: ${err.name}`);
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Step 6 — Evidence tier
+ * ------------------------------------------------------------------ */
+
+const LEGAL_STATES_WITHOUT_TIER = new Set(["licensed", "sandbox", "registered", "authority"]);
+const MIN_INDEPENDENT_SOURCES = 3;
+const IMPERSONATION_CODE = "ADVERTISED_AS_BUSINESS_NOT_REGISTERED";
+
+/**
+ * How well evidenced a finding is, not how bad it looks. Licensed, sandbox,
+ * registered and authority are legal states and never carry a tier.
+ */
+async function determineTier({ state, records, hashes, entity }) {
+  if (LEGAL_STATES_WITHOUT_TIER.has(state)) return { tier: null, codes: [] };
+
+  const live = records.filter(isGhanaFinding);
+  if (live.length) {
+    const codes = [];
+    if (live.some((r) => r.type === "warning")) codes.push("REGULATOR_NOTICE");
+    if (live.some((r) => r.type === "sanction")) codes.push("SANCTIONS_LIST");
+    return { tier: 1, codes };
+  }
+
+  // A relation only goes active after a second person reviews it.
+  const [partner, impersonation] = await Promise.all([
+    Contribution.exists({ "identifiers.valueHash": { $in: hashes }, reviewStatus: "reviewed" }),
+    entity
+      ? Relation.findOne({ fromEntity: entity._id, type: "impersonates", status: "active" }).populate("toEntity", "name").populate("sourceId").lean()
+      : null,
+  ]);
+  if (partner || impersonation) {
+    return {
+      tier: 2,
+      codes: [...(partner ? ["PARTNER_CONFIRMED"] : []), ...(impersonation ? [IMPERSONATION_CODE] : [])],
+      impersonation,
+    };
+  }
+
+  // Independent channels, not volume. Twenty reports from one place are one source.
+  const sources = await PublicReport.distinct("source", {
+    "identifiers.valueHash": { $in: hashes },
+    reviewStatus: "confirmed",
+    "evidenceRefs.0": { $exists: true },
+  });
+  if (sources.length >= MIN_INDEPENDENT_SOURCES) return { tier: 3, codes: ["CORROBORATED_REPORTS"] };
+
+  const signalKeys = [...hashes, entity?.slug, entity ? String(entity._id) : null].filter(Boolean);
+  if (await Signal.exists({ key: { $in: signalKeys }, anomalyFlag: true, reviewStatus: "reviewed" })) {
+    return { tier: 4, codes: ["CHECK_SPIKE"] };
+  }
+
+  return { tier: null, codes: [] };
+}
+
+/* ------------------------------------------------------------------ *
+ * Step 7 — Permitted use and suggested action
+ * ------------------------------------------------------------------ */
+
+export function determineAllowedUse(tier, org, codes = []) {
+  if (tier === 1) return "customer_warning";
+  if (tier === 2 && codes.includes(IMPERSONATION_CODE)) return "customer_warning";
+  if (tier === 2) return org?.warnsOnPartnerData ? "customer_warning" : "internal_review";
+  if (tier === 3) return "internal_review";
+  if (tier === 4) return "watch";
+  return null;
+}
+
+export function determineSuggestedAction(tier, { allowedUse, newPayee, amountGhs, org }) {
+  if (tier === 1) {
+    const limit = org?.confirmationCallLimitGhs;
+    const atLimit = limit !== null && limit !== undefined && amountGhs !== undefined && amountGhs !== null && Number(amountGhs) >= limit;
+    return newPayee === true && atLimit ? "warn_or_confirmation_call" : "warn";
+  }
+  if (tier === 2) return allowedUse === "customer_warning" ? "warn" : "internal_review";
+  if (tier === 3) return "internal_review";
+  if (tier === 4) return "watch";
+  return "none";
+}
+
+/* ------------------------------------------------------------------ *
+ * The flow
+ * ------------------------------------------------------------------ */
+
+export async function dataDate() {
+  const latest = await Record.findOne({ status: "active" }).sort({ updatedAt: -1 }).select("updatedAt").lean();
+  return latest ? latest.updatedAt.toISOString().split("T")[0] : null;
+}
+
+function sourceOf(record) {
+  const s = record.sourceId || {};
+  return {
+    publisher: s.publisher,
+    title: s.title,
+    date: s.publishedOn ? new Date(s.publishedOn).toISOString().split("T")[0] : null,
+    url: s.url || null,
+    archive_url: s.archiveUrl || null,
+    quote: record.quote || null,
+    record_type: record.type,
+    license_type: record.licenseType || null,
+    jurisdiction: record.jurisdiction,
+    effective_on: record.effectiveOn || null,
+    ends_on: record.endsOn || null,
+  };
+}
+
+/**
+ * Rules 4 and 5: only a Ghana finding, a legal state or a reviewed impersonation
+ * reaches the public. Partner data, reports and signals never do.
+ */
+function maskForPublic(result) {
+  if (result.impersonated) {
+    result.reason_codes = [IMPERSONATION_CODE];
+  } else if (result.tier !== 1) {
+    result.tier = null;
+    result.reason_codes = [];
+  }
+  result.allowed_use = null;
+  result.suggested_action = "none";
+
+  if (result.state === "no_record" && !result.foreign_context.length && !result.impersonated) {
+    result.match = false;
+    result.entity = null;
+    result.entity_id = null;
+    result.entity_slug = null;
+    // Nothing is shown, so nothing may hint that a hidden record exists.
+    result.is_demo = false;
+  }
+}
+
+async function finish(result, { audience, text, extraText }) {
+  if (audience !== "institution") maskForPublic(result);
+
+  // A partner's stated terms are partner data, so only institutions see them used.
+  const reportText = text || (audience === "institution" ? extraText : "") || "";
+  result.return_check = returnCheck(reportText);
+  result.warning_signs = warningSigns(text || "");
+  result.report = buildReport({
+    state: result.state,
+    tier: result.tier,
+    entity: result.entity,
+    sources: result.state === "no_record" && !result.impersonated ? [] : result.sources,
+    foreignContext: result.foreign_context,
+    merchantClaim: result.merchant_claim,
+    didYouMean: result.did_you_mean,
+    impersonated: result.impersonated,
+    text: reportText,
+    dataDate: await dataDate(),
+    isDemo: result.is_demo,
+  });
+  result.questions_to_ask = result.report.questions_to_ask;
+  return result;
+}
+
+/**
+ * Check one identifier.
+ *
+ * audience is "public" (the default, for bots and the web app) or "institution".
+ * org is the calling organisation's document. text is the message it came in, if
+ * any, used only for the return check and warning signs.
+ */
+export async function evaluate(input) {
+  const {
+    recipient,
+    type,
+    text,
+    amount_ghs: amountGhs,
+    new_payee: newPayee = false,
+    skip_confirmation: skipConfirmation = false,
+    advertised_as: advertisedAs,
+    suggested_name: suggestedName,
+    audience = "public",
+    org = null,
+  } = input;
+
+  const now = new Date();
+  const result = {
+    match: false,
+    entity: null,
+    entity_id: null,
+    entity_slug: null,
+    state: "no_record",
+    tier: null,
+    reason_codes: [],
+    sources: [],
+    foreign_context: [],
+    allowed_use: null,
+    suggested_action: "none",
+    warning_signs: [],
+    return_check: null,
+    questions_to_ask: [],
+    is_demo: false,
+    checked_at: now.toISOString(),
+  };
+  const context = { audience, text };
+
+  /* --- 1. Extract and 2. Normalise --------------------------------- */
+  const { value, lookupType } = extractIdentifiers(recipient, type);
+  const normalized = normalizeIdentifier(lookupType, value);
+  const valueHash = normalized ? hashIdentifier(lookupType, normalized) : "";
+  result.value_hash = valueHash;
+  if (!normalized) {
+    if (suggestedName) {
+      result.needs_confirmation = true;
+      result.did_you_mean = { suggested_entity: suggestedName };
+    }
+    return finish(result, context);
+  }
+
+  await flagAdvertisedNumber(advertisedAs, lookupType, valueHash);
+
+  /* --- 3. Match: identifier hashes first, then names ---------------- */
+  let entity = null;
+  const candidates = await Identifier.find({ valueHash, status: "active" }).lean();
+  if (candidates.length > 1) entity = (await rankByRecordWeight(candidates)).entity;
+  else if (candidates.length) entity = await Entity.findById(candidates[0].entityId).lean();
+
+  if (!entity && lookupType === "name") {
+    const pattern = new RegExp(`^${escapeRegex(normalized)}$`, "i");
+    entity = await Entity.findOne({ $or: [{ name: pattern }, { aliases: pattern }] }).lean();
+
+    if (!entity && !skipConfirmation) {
+      const suggested = await closeName(value, now);
+      if (suggested) {
+        result.needs_confirmation = true;
+        result.did_you_mean = { suggested_entity: suggested };
+      }
+    }
+  }
+
+  if (!entity && lookupType === "domain" && !skipConfirmation) {
+    const suggested = await closeDomain(normalized, now);
+    if (suggested) {
+      result.needs_confirmation = true;
+      result.did_you_mean = { suggested_entity: suggested };
+    }
+  }
+
+  // A look-alike found elsewhere in the message, offered if nothing else matched.
+  if (!entity && !result.did_you_mean && suggestedName) {
+    result.needs_confirmation = true;
+    result.did_you_mean = { suggested_entity: suggestedName };
+  }
+
+  const records = entity
+    ? await Record.find({ entityId: entity._id }).populate("sourceId").lean()
+    : [];
+  const live = records.filter((r) => isLive(r, now));
+
+  // A record nobody has reviewed, or one that has ended or been withdrawn, must
+  // never reach a caller. Only a regulator's own entry answers without one.
+  if (entity && records.length && !live.length && entity.kind !== "authority") entity = null;
+
+  /* --- 4. Legal state ----------------------------------------------- */
+  const merchant = NUMBER_TYPES.includes(lookupType) ? await merchantForNumber(valueHash) : null;
+  result.state = determineState(live, entity);
+  if (merchant && result.state === "no_record") result.state = "registered";
+  if (merchant) {
+    result.merchant_claim = { registered: true, business: merchant.legalName, since: merchant.verifiedAt };
+  }
+
+  /* --- 6. Tier ------------------------------------------------------ */
+  const hashes = entity
+    ? [...new Set([valueHash, ...(await Identifier.find({ entityId: entity._id }).select("valueHash").lean()).map((i) => i.valueHash)])]
+    : [valueHash];
+  const { tier, codes, impersonation } = await determineTier({ state: result.state, records: live, hashes, entity });
+  result.tier = tier;
+  result.reason_codes = codes;
+
+  /* --- Partner numbers have no entity of their own ------------------ */
+  const contributions = await Contribution.find({ "identifiers.valueHash": { $in: hashes }, reviewStatus: "reviewed" })
+    .select("schemeName terms isDemo")
+    .lean();
+  if (!entity && !merchant && !contributions.length && tier === null) return finish(result, context);
+
+  /* --- Found ---------------------------------------------------------- */
+  result.match = true;
+  result.entity = entity?.name || merchant?.legalName || contributions[0]?.schemeName || null;
+  result.entity_id = entity?._id || null;
+  result.entity_slug = entity?.slug || null;
+  result.sources = live.filter((r) => !isForeign(r) && r.sourceId).map(sourceOf);
+  if (impersonation) {
+    result.impersonated = impersonation.toEntity?.name || null;
+    if (impersonation.sourceId) result.sources.push(sourceOf({ sourceId: impersonation.sourceId, type: "impersonation" }));
+  }
+  result.foreign_context = live
+    .filter(isForeign)
+    .map((r) => ({ jurisdiction: r.jurisdiction, publisher: r.sourceId?.publisher, date: sourceOf(r).date, url: r.sourceId?.url || null }));
+  result.is_demo = Boolean(
+    entity?.isDemo || merchant?.isDemo || live.some((r) => r.isDemo || r.sourceId?.isDemo) || contributions.some((c) => c.isDemo)
+  );
+
+  /* --- 7. Permitted use and action ---------------------------------- */
+  result.allowed_use = determineAllowedUse(tier, org, codes);
+  result.suggested_action = determineSuggestedAction(tier, { allowedUse: result.allowed_use, newPayee, amountGhs, org });
+
+  /* --- 8. Report. 9. Logging is the route's job. --------------------- */
+  return finish(result, { ...context, extraText: contributions.find((c) => c.terms)?.terms });
 }
 
 export default { evaluate };

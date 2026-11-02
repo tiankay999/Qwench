@@ -1,20 +1,24 @@
 /**
- * Startup gate for the secrets the data model depends on.
+ * Startup gate for the secrets the app depends on.
  *
- * Both of these key one-way hashes of personal data (phone numbers, MoMo and
- * bank accounts). A default value would silently make every hash in every
- * deployment identical and therefore reversible by anyone with the code, so
- * there is deliberately no fallback: the app refuses to start without them.
+ * The first two key one-way hashes of personal data (phone numbers, MoMo and
+ * bank accounts); JWT_SECRET signs console sessions. A default value would make
+ * every hash reversible, and every session forgeable, by anyone with the code,
+ * so there is deliberately no fallback: the app refuses to start without them.
  */
 
 const REQUIRED = [
   {
     name: "PHONE_HASH_SALT",
-    purpose: "hashing phone, MoMo and bank numbers so raw values are never stored",
+    purpose: "hashing senders for the daily fair-use limit, and reporter numbers on /api",
   },
   {
     name: "HMAC_SECRET_KEY",
-    purpose: "keyed hashing of identifiers shared between member organisations",
+    purpose: "keyed hashing of every identifier, including MoMo and bank numbers",
+  },
+  {
+    name: "JWT_SECRET",
+    purpose: "signing console login sessions",
   },
 ];
 
@@ -48,8 +52,8 @@ export function requireSecrets({ exitOnFailure = true } = {}) {
   console.error("     Generate strong values and put them in Backend/.env:");
   console.error("       node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"");
   console.error("");
-  console.error("     These key one-way hashes of personal data. Changing them later");
-  console.error("     invalidates every existing hash, so set them once and keep them.");
+  console.error("     PHONE_HASH_SALT and HMAC_SECRET_KEY key one-way hashes of personal data.");
+  console.error("     Changing them later invalidates every existing hash, so set them once and keep them.");
   console.error("");
 
   if (exitOnFailure) process.exit(1);

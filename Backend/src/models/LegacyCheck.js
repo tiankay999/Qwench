@@ -2,7 +2,7 @@
 //
 // This is the original analytics row: it stores the raw query string, which
 // the new model deliberately does not. It stays only so existing data can be
-// read and migrated (src/scripts/migrateOldData.js). Do not write new rows.
+// read until Phase 6. Do not write new rows.
 //
 // Registered as "LegacyCheck" over the original `checks` collection, because
 // the new Check model owns the name and lives in `check_events`.

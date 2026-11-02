@@ -10,7 +10,7 @@ import { Record, recordAudit } from "../models/index.js";
  * Signs off records that are waiting on review, so they go active and the /v1
  * API can match against them.
  *
- * Why this exists: every record the migration imported was left `under_review`
+ * Why this exists: every record the migration imported was left `pending`
  * by design, and `/v1/check` only reads `status: "active"`. Without a review
  * step the API matches an entity but reports `no_record` for everything.
  *
@@ -44,7 +44,7 @@ async function main() {
   requireSecrets();
   await connectDB();
 
-  const pending = await Record.find({ status: "under_review" }).populate("entityId", "name").lean();
+  const pending = await Record.find({ status: "pending" }).populate("entityId", "name").lean();
   console.log("");
   console.log(`  ${pending.length} record(s) awaiting review`);
 
@@ -82,7 +82,7 @@ async function main() {
         actor: reviewer,
         action: "record.review",
         target: `Record:${doc._id}`,
-        before: { status: "under_review" },
+        before: { status: "pending" },
         after: { status: "active", reviewedBy: reviewer },
       });
     } catch (err) {

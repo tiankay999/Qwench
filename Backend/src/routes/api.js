@@ -50,13 +50,14 @@ router.post("/check", async (req, res) => {
     const result = await evaluate({
       recipient: query,
       type,
-      channel,
       amount_ghs: amountGhs,
       new_payee: newPayee,
       skip_confirmation: skipConfirmation,
+      audience: "public",
     });
 
-    await logCheck({
+    // Never awaited, and never throws: a log write must not hold up the reply.
+    logCheck({
       channel: ["whatsapp", "telegram", "web", "api"].includes(channel) ? channel : "whatsapp",
       inputType: type === "momo_number" ? "number" : type === "url" ? "url" : type,
       identifierHashes: [result.value_hash],
@@ -65,9 +66,12 @@ router.post("/check", async (req, res) => {
       tier: result.tier,
       flags: result.reason_codes,
       outcome: result.suggested_action,
+      isDemo: result.is_demo,
     });
 
-    res.json({ ok: true, data: result });
+    // The hash stays on this side of the API.
+    const { value_hash: _hash, entity_id: _id, ...reply } = result;
+    res.json({ ok: true, data: reply });
   } catch (err) {
     console.error("[api] /check failed:", err);
     res.status(500).json({ ok: false, error: "Check failed" });

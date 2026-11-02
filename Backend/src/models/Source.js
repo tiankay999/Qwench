@@ -21,6 +21,7 @@ const sourceSchema = new mongoose.Schema(
     archiveUrl: { type: String, trim: true },
 
     isOfficial: { type: Boolean, default: false },
+    isDemo: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

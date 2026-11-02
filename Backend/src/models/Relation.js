@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 
 export const RELATION_TYPES = ["impersonates", "claims_affiliation", "renamed_from", "same_operator"];
-export const RELATION_STATUSES = ["active", "disputed", "resolved"];
+export const RELATION_STATUSES = ["pending", "active", "disputed", "resolved"];
 
 /**
  * A link between two entities: who is impersonating whom, who claims to be
@@ -13,8 +13,12 @@ const relationSchema = new mongoose.Schema(
     toEntity: { type: mongoose.Schema.Types.ObjectId, ref: "Entity", required: true },
     type: { type: String, required: true, enum: RELATION_TYPES },
     sourceId: { type: mongoose.Schema.Types.ObjectId, ref: "Source" },
-    status: { type: String, enum: RELATION_STATUSES, default: "active" },
+    status: { type: String, enum: RELATION_STATUSES, default: "pending" },
+    capturedBy: { type: String, trim: true },
+    reviewedBy: { type: String, trim: true },
+    reviewedAt: { type: Date },
     notes: { type: String, trim: true },
+    isDemo: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
@@ -36,6 +40,17 @@ relationSchema.pre("validate", async function enforceDirection() {
   }
 
   if (!ACCUSATORY.has(this.type)) return;
+
+  // An active impersonation is shown to the public, so it takes two people.
+  const captured = (this.capturedBy || "").trim().toLowerCase();
+  const reviewed = (this.reviewedBy || "").trim().toLowerCase();
+  if (this.status === "active" && (!captured || !reviewed)) {
+    throw new Error("This relation cannot go active before review. It needs capturedBy and reviewedBy.");
+  }
+  if (captured && reviewed && captured === reviewed) {
+    throw new Error("The reviewer must be a different person from the capturer.");
+  }
+  if (reviewed && !this.reviewedAt) this.reviewedAt = new Date();
 
   // A lookup failure here must reject the write, never silently allow it:
   // failing open would publish exactly the accusation this rule prevents.
@@ -71,6 +86,19 @@ relationSchema.pre("validate", async function enforceDirection() {
     }
   }
 });
+
+/** Query updates skip the rules above, so these fields only change through save(). */
+function refuseUnreviewedUpdate() {
+  const update = this.getUpdate();
+  const fields = Array.isArray(update) ? null : { ...update, ...update?.$set, ...update?.$setOnInsert };
+  if (!fields || fields.status === "active" || "reviewedBy" in fields || "capturedBy" in fields) {
+    throw new Error("Change a relation's status or review fields with document.save(), so the review rules run.");
+  }
+}
+
+for (const op of ["updateOne", "updateMany", "findOneAndUpdate", "replaceOne", "findOneAndReplace"]) {
+  relationSchema.pre(op, refuseUnreviewedUpdate);
+}
 
 relationSchema.index({ fromEntity: 1 });
 relationSchema.index({ toEntity: 1 });

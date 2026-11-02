@@ -7,102 +7,158 @@
 // - Identity of who performed a check
 // - Raw phone numbers or message text
 // Sandbox, licensed, and authority results are LEGAL STATES, never warnings.
+//
+// A public reply may reveal only regulator and sanctions records, legal states and
+// reviewed impersonation. Anything else must be identical to a no-record reply.
 
 import { Router } from "express";
 
-import { checkRules } from "../middleware/validate.js";
-import { evaluate } from "../services/evidenceEngine.js";
+import { hashIdentifier, normalizeIdentifier } from "../lib/identifiers.js";
+import { channelAuth, fairUse } from "../middleware/channelKey.js";
+import { appealRules, publicCheckRules, publicReportRules } from "../middleware/validate.js";
+import { Appeal, PublicReport, Record, Source } from "../models/index.js";
+import { dataDate } from "../services/evidenceEngine.js";
+import { checkMessage } from "../services/messageCheck.js";
 import { logCheck } from "../utils/logCheck.js";
 
 const router = Router();
 
-const VALID_CHANNELS = ["whatsapp", "telegram", "web", "api"];
+const VOLUME_FLAG_AT = 10;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * POST /v1/public/check
  *
  * The main endpoint: WhatsApp bot, Telegram bot, and the web paste box.
- * Every decision here comes from the evidence engine's rules, not a model.
  */
-router.post("/check", checkRules, async (req, res, next) => {
-  const { recipient, type, amount_ghs: amountGhs, new_payee: newPayee = false } = req.body;
-  const channel = VALID_CHANNELS.includes(req.headers["x-channel"]) ? req.headers["x-channel"] : "web";
-
+router.post("/check", publicCheckRules, channelAuth, fairUse, async (req, res, next) => {
   try {
-    const result = await evaluate({ recipient, type, channel, amount_ghs: amountGhs, new_payee: newPayee });
+    const { result, identifierHashes, matchedEntityIds, inputType } = await checkMessage({ ...req.body, channel: req.channel });
 
-    // The sender is hashed inside logCheck with a daily-rotating salt and
-    // cleared after 24h; the raw value never reaches the database.
-    await logCheck({
-      channel,
-      inputType: inputTypeFor(type),
-      identifierHashes: [result.value_hash],
-      matchedEntityIds: result.entity_id ? [result.entity_id] : [],
+    // Never awaited, and never throws: a log write must not hold up the reply.
+    logCheck({
+      channel: req.channel,
+      inputType,
+      identifierHashes,
+      matchedEntityIds,
       state: result.state,
       tier: result.tier,
       flags: result.reason_codes,
-      sender: req.headers["x-sender"],
-      outcome: result.suggested_action,
+      outcome: "none",
+      isDemo: result.is_demo,
     });
 
-    // A close-but-not-exact name: ask which was meant rather than judging.
-    if (result.needs_confirmation) {
-      return res.json({
-        match: false,
-        did_you_mean: result.did_you_mean,
-        checked_at: result.checked_at,
-      });
-    }
-
-    if (!result.match) {
-      return res.json({
-        match: false,
-        state: result.state,
-        tier: result.tier,
-        reason_codes: result.reason_codes,
-        // Absence of a record is not a clean bill of health, and saying so is
-        // the single most important line in a no-match reply.
-        note: "No record found. This does not mean it is safe or unsafe.",
-        questions_to_ask: result.questions_to_ask,
-        checked_at: result.checked_at,
-      });
-    }
-
     return res.json({
-      match: true,
-      entity: result.entity,
+      match: result.match,
       state: result.state,
+      entity: result.entity,
       tier: result.tier,
       reason_codes: result.reason_codes,
-      sources: result.sources,
-      warning_signs: result.warning_signs,
-      return_check: result.return_check,
-      questions_to_ask: result.questions_to_ask,
-      allowed_use: result.allowed_use,
-      suggested_action: result.suggested_action,
+      did_you_mean: result.did_you_mean || null,
+      report: result.report,
+      is_demo: result.is_demo,
       checked_at: result.checked_at,
     });
   } catch (err) {
-    next(err);
+    return next(err);
   }
 });
 
-/** Map a request type onto the Check model's inputType enum. */
-function inputTypeFor(type) {
-  switch (type) {
-    case "momo_number":
-    case "bank_account":
-      return "number";
-    case "domain":
-      return "domain";
-    case "url":
-    case "telegram_link":
-      return "url";
-    case "wallet":
-      return "wallet";
-    default:
-      return "name";
+/** Long digit runs in a name are probably someone's number. They aren't stored. */
+const withoutNumbers = (text) => String(text).replace(/\+?\d[\d\s-]{6,}\d/g, "[number removed]").trim();
+
+/**
+ * POST /v1/public/reports
+ *
+ * A report only ever opens a review. The reply is the same whatever is already
+ * known, with no count, so it can't be used to find out what Qwench holds.
+ */
+router.post("/reports", publicReportRules, channelAuth, fairUse, async (req, res, next) => {
+  const { scheme_name: schemeName, identifiers = [], evidence_urls: evidenceUrls = [] } = req.body;
+
+  try {
+    const hashed = identifiers
+      .map(({ type, value }) => ({ type, valueHash: hashIdentifier(type, normalizeIdentifier(type, value)) }))
+      .filter((id) => id.valueHash);
+
+    await PublicReport.create({
+      schemeName: withoutNumbers(schemeName),
+      identifiers: hashed,
+      source: req.channel,
+      evidenceRefs: evidenceUrls,
+    });
+
+    // Many reports from one channel get a person's attention. Nothing public changes.
+    await Promise.all(
+      hashed.map(async ({ valueHash }) => {
+        const filter = { "identifiers.valueHash": valueHash, source: req.channel, createdAt: { $gte: new Date(Date.now() - DAY_MS) } };
+        if ((await PublicReport.countDocuments(filter)) >= VOLUME_FLAG_AT) await PublicReport.updateMany(filter, { volumeFlag: true });
+      })
+    );
+
+    return res.status(202).json({ received: true, message: "Thank you. A person will review this." });
+  } catch (err) {
+    return next(err);
   }
-}
+});
+
+/**
+ * POST /v1/public/appeals
+ *
+ * The reply never confirms or denies internal reports. It says the same thing
+ * whether Qwench holds anything on the identifier or not, and a person answers
+ * only about what Qwench shows publicly.
+ */
+router.post("/appeals", appealRules, async (req, res, next) => {
+  const { type, value, contact, reason } = req.body;
+
+  try {
+    const normalized = normalizeIdentifier(type, value);
+    if (!normalized) return next(Object.assign(new Error("Invalid input: value isn't valid for this type"), { status: 400, expose: true, code: "invalid_input" }));
+
+    const appeal = await Appeal.create({ identifierHash: hashIdentifier(type, normalized), contact, reason });
+
+    return res.status(202).json({
+      received: true,
+      reference: String(appeal._id),
+      due_date: appeal.dueDate.toISOString().split("T")[0],
+      message: "Thank you. A person will reply about what Qwench shows publicly.",
+    });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/**
+ * GET /v1/public/about
+ *
+ * How current the data is, and how many reviewed records each publisher accounts
+ * for. Partner data and demo data are not counted.
+ */
+router.get("/about", async (_req, res, next) => {
+  try {
+    const now = new Date();
+    const counts = await Record.aggregate([
+      { $match: { status: "active", isDemo: { $ne: true }, $or: [{ endsOn: null }, { endsOn: { $gt: now } }] } },
+      { $group: { _id: "$sourceId", records: { $sum: 1 } } },
+    ]);
+    const sources = await Source.find({ _id: { $in: counts.map((c) => c._id) }, isDemo: { $ne: true } }).select("publisher").lean();
+    const publisherOf = new Map(sources.map((s) => [String(s._id), s.publisher]));
+
+    const byPublisher = new Map();
+    for (const { _id, records } of counts) {
+      const publisher = publisherOf.get(String(_id));
+      if (publisher) byPublisher.set(publisher, (byPublisher.get(publisher) || 0) + records);
+    }
+
+    return res.json({
+      data_date: await dataDate(),
+      total_records: [...byPublisher.values()].reduce((a, b) => a + b, 0),
+      records_by_source: [...byPublisher].map(([publisher, records]) => ({ publisher, records })).sort((a, b) => b.records - a.records),
+    });
+  } catch (err) {
+    return next(err);
+  }
+});
 
 export default router;

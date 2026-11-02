@@ -38,7 +38,7 @@ export function normalizeBasic(str) {
 export function normalizeHomoglyphs(str) {
   return String(str || "")
     .toLowerCase()
-    .replace(/1/g, "l")
+    .replace(/[1i|]/g, "l")
     .replace(/0/g, "o")
     .replace(/3/g, "e")
     .replace(/4/g, "a")
@@ -61,6 +61,51 @@ export function collapseRepeats(str) {
 /** Comparison key: homoglyphs folded, repeats collapsed, spaces removed. */
 function tightKey(str) {
   return collapseRepeats(normalizeHomoglyphs(str)).replace(/\s/g, "");
+}
+
+/** Words of a message, keeping the characters look-alikes are made from. */
+const messageWords = (text) =>
+  String(text || "")
+    .split(/\s+/)
+    .map((w) => w.replace(/^[^\p{L}\p{N}$@|]+|[^\p{L}\p{N}$@|]+$/gu, ""))
+    .filter(Boolean);
+
+/** Names from the list that appear in the text exactly, as whole words. */
+export function findNamesInText(text, entities, { minLength = 4 } = {}) {
+  const haystack = ` ${normalizeBasic(text)} `;
+  const found = [];
+  for (const entity of entities) {
+    const labels = [entity.name, ...(entity.aliases || [])].map(normalizeBasic).filter((l) => l.length >= minLength);
+    if (labels.some((label) => haystack.includes(` ${label} `))) found.push(entity.name);
+  }
+  return found;
+}
+
+/**
+ * Names from the list that appear in the text in disguise, such as "App1e" or
+ * "Vaultaa". A plain mention isn't a look-alike, and neither is a nearby word.
+ */
+export function findLookalikesInText(text, entities, { skip = () => false } = {}) {
+  const words = messageWords(text);
+  const found = [];
+
+  for (const entity of entities) {
+    for (const label of [entity.name, ...(entity.aliases || [])]) {
+      const basic = normalizeBasic(label);
+      const size = basic.split(" ").length;
+      const tight = tightKey(label);
+      if (tight.length < 4) continue;
+
+      for (let i = 0; i + size <= words.length; i += 1) {
+        const window = words.slice(i, i + size).join(" ");
+        if (normalizeBasic(window) !== basic && tightKey(window) === tight && !skip(window)) {
+          found.push(entity.name);
+          break;
+        }
+      }
+    }
+  }
+  return [...new Set(found)];
 }
 
 /* ------------------------------------------------------------------ *
@@ -113,7 +158,6 @@ const INDEX_TTL_MS = 5 * 60 * 1000;
 /** Call after the register is reloaded so the index picks up new entities. */
 export function invalidateNameIndex() {
   cache = null;
-  console.log("[verify] name index invalidated");
 }
 
 async function getIndex() {
@@ -127,29 +171,36 @@ async function getIndex() {
     { name: 1, aliases: 1, status: 1, source: 1, licenseType: 1, category: 1, slug: 1 }
   ).lean();
 
-  const entities = docs.map((d) => ({
-    name: d.name,
-    aliases: d.aliases || [],
-    status: d.status,
-    source: d.source || "",
-    licenseType: d.licenseType || "",
-    category: d.category || "other",
-    slug: d.slug,
-  }));
+  cache = {
+    builtAt: Date.now(),
+    ...buildNameIndex(
+      docs.map((d) => ({
+        name: d.name,
+        aliases: d.aliases || [],
+        status: d.status,
+        source: d.source || "",
+        licenseType: d.licenseType || "",
+        category: d.category || "other",
+        slug: d.slug,
+      }))
+    ),
+  };
+  return cache;
+}
 
+/** Comparison keys and fuzzy index over a list of named entities. */
+export function buildNameIndex(entities, { threshold = fuseOptions.threshold } = {}) {
   // name + every alias, each as its own comparison key
   const keyed = [];
   for (const e of entities) {
-    for (const label of [e.name, ...e.aliases]) {
+    for (const label of [e.name, ...(e.aliases || [])]) {
       const basic = normalizeBasic(label);
       if (basic.length < 3) continue;
       keyed.push({ entity: e, label, basic, tight: tightKey(label), words: basic.split(" ") });
     }
   }
 
-  cache = { builtAt: Date.now(), entities, keyed, fuse: new Fuse(entities, fuseOptions) };
-  console.log(`[verify] name index built: ${entities.length} entities, ${keyed.length} searchable labels`);
-  return cache;
+  return { entities, keyed, fuse: new Fuse(entities, { ...fuseOptions, threshold }) };
 }
 
 /* ------------------------------------------------------------------ *
@@ -264,7 +315,7 @@ const STATUS_LABEL = {
  *   soft_warning      - loosely similar; proceed, but mention it
  *   no_match          - nothing similar; normal analysis
  */
-export async function verifyName(rawQuery) {
+export async function verifyName(rawQuery, { index = null, strict = false } = {}) {
   const query = String(rawQuery || "").trim();
   const base = {
     query,
@@ -284,13 +335,12 @@ export async function verifyName(rawQuery) {
 
   if (normalizeBasic(query).length < 3) return base;
 
-  const { keyed, fuse } = await getIndex();
+  const { keyed, fuse } = index || (await getIndex());
 
   /* --- Exact or structural variant --------------------------------- */
   const variant = findVariant(query, keyed);
 
   if (variant?.exact) {
-    console.log(`[verify] "${query}" is an exact match for ${variant.k.entity.name} (${variant.k.entity.status})`);
     return {
       ...base,
       decision: "exact",
@@ -321,7 +371,6 @@ export async function verifyName(rawQuery) {
   const top = hits[0];
 
   if (!top) {
-    console.log(`[verify] "${query}" -> no similar entity`);
     return base;
   }
 
@@ -335,10 +384,8 @@ export async function verifyName(rawQuery) {
   // be genuinely close before escalating.
   const ratio = bestLabelRatio(normalizeBasic(query), entity);
 
-  if (ratio > 0.45) {
-    console.log(
-      `[verify] "${query}" -> discarding weak match "${entity.name}" (fuse ${score}, edit ratio ${ratio.toFixed(2)})`
-    );
+  // Strict mode, used by the evidence engine, only accepts very close names.
+  if (ratio > (strict ? 0.25 : 0.45)) {
     return { ...base, fuseScore: score };
   }
 
@@ -350,7 +397,6 @@ export async function verifyName(rawQuery) {
     // instead of burying it in a one-line note -- someone searching a
     // look-alike may simply not know the real company's exact name.
     if (legit) {
-      console.log(`[verify] "${query}" is near registered "${entity.name}" -- offering the real one`);
       return {
         ...base,
         decision: "legit_lookalike",
@@ -363,7 +409,6 @@ export async function verifyName(rawQuery) {
       };
     }
 
-    console.log(`[verify] "${query}" -> soft warning, loosely like ${entity.name} (edit ratio ${ratio.toFixed(2)})`);
     return {
       ...base,
       decision: "soft_warning",
@@ -375,7 +420,7 @@ export async function verifyName(rawQuery) {
     };
   }
 
-  if (score < 0.3) {
+  if (score < (strict ? 0.2 : 0.3)) {
     return decide({
       base,
       query,
@@ -387,7 +432,6 @@ export async function verifyName(rawQuery) {
   }
 
   if (score <= 0.5) {
-    console.log(`[verify] "${query}" -> soft warning, similar to ${entity.name} (score ${score})`);
     return {
       ...base,
       decision: "soft_warning",
@@ -398,7 +442,6 @@ export async function verifyName(rawQuery) {
     };
   }
 
-  console.log(`[verify] "${query}" -> no meaningful match (best score ${score})`);
   return { ...base, fuseScore: score };
 }
 
@@ -409,7 +452,6 @@ function decide({ base, query, entity, indicators, similarity, fuseScore = null,
   // A variant of a blacklisted name is never a different company. Auto-flag it
   // rather than offering it as a choice.
   if (isBad) {
-    console.log(`[verify] 🔴 "${query}" is a variant of blacklisted "${entity.name}" -- auto-flagging`);
     return {
       ...base,
       decision: "blacklist_variant",
@@ -434,7 +476,6 @@ function decide({ base, query, entity, indicators, similarity, fuseScore = null,
   // Only ordinary corporate suffixes were added ("Databank Ghana Ltd"), so this
   // almost certainly IS that company. Proceed, naming the registered entity.
   if (allBenign) {
-    console.log(`[verify] "${query}" -> soft warning (benign suffix on ${entity.name})`);
     return {
       ...base,
       decision: "soft_warning",
@@ -452,7 +493,6 @@ function decide({ base, query, entity, indicators, similarity, fuseScore = null,
   // know the real company's exact name, and showing them it exists is the most
   // useful thing Qwench can do here.
   if (!escalate && matchIsLegit) {
-    console.log(`[verify] ℹ️  "${query}" resembles registered "${entity.name}" -- offering the real one`);
     return {
       ...base,
       decision: "legit_lookalike",
@@ -466,11 +506,9 @@ function decide({ base, query, entity, indicators, similarity, fuseScore = null,
   }
 
   if (!escalate) {
-    console.log(`[verify] "${query}" -> soft warning (different wording vs ${entity.name})`);
     return { ...base, decision: "soft_warning", match, matchIsLegit, fuseScore, similarity, spoofIndicators: indicators };
   }
 
-  console.log(`[verify] ⚠️  "${query}" resembles ${entity.status} entity "${entity.name}" -- asking the user`);
   return {
     ...base,
     decision: "spoofing_alert",

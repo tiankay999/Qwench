@@ -16,6 +16,7 @@ const apiKeySchema = new mongoose.Schema(
     scopes: [{ type: String, enum: API_SCOPES }],
     rateLimit: { type: Number, default: 100 },
     revokedAt: { type: Date, default: null },
+    lastUsedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );
@@ -44,7 +45,8 @@ export function hashApiKey(rawKey) {
 export function generateApiKey({ live = true } = {}) {
   const prefix = live ? "qw_live_" : "qw_test_";
   const rawKey = prefix + crypto.randomBytes(KEY_BYTES).toString("base64url");
-  return { rawKey, prefix, keyHash: hashApiKey(rawKey) };
+  // Enough of the key to tell it apart in a list, and not enough to use it.
+  return { rawKey, prefix: rawKey.slice(0, prefix.length + 6), keyHash: hashApiKey(rawKey) };
 }
 
 export default mongoose.model("ApiKey", apiKeySchema);

@@ -1,5 +1,8 @@
-import axios from "axios";
 import * as cheerio from "cheerio";
+
+import { cleanText } from "../engine/extract.js";
+import { pageSignals, spacedText } from "../engine/pageSignals.js";
+import { safeFetch } from "../lib/safeFetch.js";
 
 import { runJsonPrompt } from "./aiAnalyzer.js";
 import { secData } from "./secData.js";
@@ -42,67 +45,38 @@ Return JSON ONLY:
   "summary": "one sentence about what this site is"
 }`;
 
+const HIDDEN_STYLE = /display\s*:\s*none|visibility\s*:\s*hidden|font-size\s*:\s*0(?![.\d])|opacity\s*:\s*0(?![.\d])|(?:left|top|text-indent)\s*:\s*-\d{3,}|color\s*:\s*#fff(?:fff)?\s*;\s*background(?:-color)?\s*:\s*#fff(?:fff)?/i;
+
 const TIMEOUT = 10000;
 const MAX_BODY = 3000;
 
-/** Block requests to private/internal addresses so a pasted link cannot probe the host. */
-function isPublicHttpUrl(raw) {
-  let u;
-  try {
-    u = new URL(raw);
-  } catch {
-    return { ok: false, reason: "not a valid URL" };
-  }
-
-  if (!["http:", "https:"].includes(u.protocol)) return { ok: false, reason: "only http and https are supported" };
-
-  const host = u.hostname.toLowerCase();
-  const isPrivate =
-    host === "localhost" ||
-    host.endsWith(".localhost") ||
-    host.endsWith(".internal") ||
-    host === "0.0.0.0" ||
-    host === "[::1]" ||
-    /^127\./.test(host) ||
-    /^10\./.test(host) ||
-    /^192\.168\./.test(host) ||
-    /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
-    /^169\.254\./.test(host) ||
-    /^fe80:/i.test(host) ||
-    /^f[cd][0-9a-f]{2}:/i.test(host);
-
-  if (isPrivate) return { ok: false, reason: "that address is on a private network" };
-  return { ok: true, url: u };
-}
-
 /** Fetch and strip a page down to the parts worth reading. */
-export async function scrapeUrl(url) {
-  const check = isPublicHttpUrl(url);
-  if (!check.ok) {
-    console.warn(`[url] refused "${url}": ${check.reason}`);
-    return { error: true, message: check.reason, statusCode: null };
-  }
-
+export async function scrapeUrl(url, fetchOptions = {}) {
   try {
-    console.log(`[url] fetching ${url}`);
-    const response = await axios.get(check.url.toString(), {
-      timeout: TIMEOUT,
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; QwenchBot/1.0)" },
-      maxRedirects: 3,
-      maxContentLength: 5 * 1024 * 1024,
-      validateStatus: null,
-      responseType: "text",
-      transformResponse: [(d) => d],
-    });
+    const response = await safeFetch(url, { timeoutMs: TIMEOUT, ...fetchOptions });
+    const finalUrl = new URL(response.finalUrl);
 
-    const $ = cheerio.load(String(response.data || ""));
-    $("script, style, noscript").remove();
+    const $ = cheerio.load(String(response.body || ""));
+    const scriptTags = "<script></script>".repeat($("script").length);
+    $("script, style, noscript, template").remove();
+
+    // Text a person can't see can still reach an AI or the rules, so it's taken out.
+    // Its contents are kept only to check whether it's aimed at AI. Only inline styles
+    // can be read here: a page can still hide text with its own style sheet.
+    const hidden = $("[hidden], [aria-hidden='true'], input[type='hidden']").add(
+      $("[style]").filter((_, el) => HIDDEN_STYLE.test($(el).attr("style") || ""))
+    );
+    const hiddenText = cleanText(hidden.text()).replace(/\s+/g, " ").trim().slice(0, MAX_BODY);
+    hidden.remove();
 
     const page = {
+      // Read from the page as a person would get it, without its hidden parts.
+      pageSignals: pageSignals(`${scriptTags}${$.html()}`),
       error: false,
       title: $("title").first().text().trim().slice(0, 300),
       metaDescription: ($('meta[name="description"]').attr("content") || "").trim().slice(0, 500),
-      bodyText: $("body").text().replace(/\s+/g, " ").trim().slice(0, MAX_BODY),
+      bodyText: cleanText(spacedText($)).replace(/\s+/g, " ").trim().slice(0, MAX_BODY),
+      hiddenText,
       links: $("a")
         .map((_, el) => $(el).attr("href"))
         .get()
@@ -116,19 +90,15 @@ export async function scrapeUrl(url) {
         .filter(Boolean)
         .slice(0, 10),
       statusCode: response.status,
-      finalUrl: response.request?.res?.responseUrl || check.url.toString(),
-      isHttps: check.url.protocol === "https:",
-      suspiciousTld: secData.suspiciousTlds.find((t) => check.url.hostname.endsWith(t)) || null,
+      finalUrl: response.finalUrl,
+      isHttps: finalUrl.protocol === "https:",
+      suspiciousTld: secData.suspiciousTlds.find((t) => finalUrl.hostname.endsWith(t)) || null,
     };
 
-    console.log(
-      `[url] ${url} -> HTTP ${page.statusCode}, ${page.bodyText.length} chars, ` +
-        `login=${page.hasLoginForm} payment=${page.hasPaymentForm}`
-    );
     return page;
   } catch (err) {
-    console.warn(`[url] fetch failed for ${url}: ${err.message}`);
-    return { error: true, statusCode: err.response?.status || null, message: err.message };
+    console.warn(`[url] fetch refused or failed: ${err.code || err.name}`);
+    return { error: true, statusCode: null, code: err.code, message: err.message };
   }
 }
 
@@ -181,7 +151,7 @@ ${content.bodyText || "(no readable text)"}`;
     console.log(`[url] ${provider}/${model} found ${result.redFlags.length} flag(s) for ${url} in ${latencyMs}ms`);
     return result;
   } catch (err) {
-    console.error(`[url] analysis failed for ${url}: ${err.message}`);
+    console.error(`[url] analysis failed: ${err.name}`);
     // The scrape still produced hard facts; report those rather than nothing.
     return { ...deterministicUrlFlags(url, content), error: false, degraded: true, reason: err.message };
   }

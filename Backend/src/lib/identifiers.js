@@ -3,10 +3,9 @@ import crypto from "node:crypto";
 /**
  * Normalisation and keyed hashing for every identifier Qwench matches on.
  *
- * Raw phone, MoMo and bank numbers are never stored. They are normalised to a
- * canonical form, then hashed with HMAC-SHA256 under a server-side key, so the
- * stored value can be matched against a future lookup but cannot be reversed
- * back into someone's number.
+ * Identifiers are normalised to a canonical form, then hashed with HMAC-SHA256
+ * under a server-side key, so a stored hash can be matched against a future lookup
+ * but cannot be reversed. See models/Identifier.js for which readable values are kept.
  */
 
 export const IDENTIFIER_TYPES = [
@@ -19,6 +18,7 @@ export const IDENTIFIER_TYPES = [
   "telegram_link",
   "tiktok_handle",
   "merchant_id",
+  "app_id",
 ];
 
 /** Types that hold personal data and must never be displayed raw. */
@@ -89,6 +89,16 @@ export function normalizeHandle(raw) {
     .replace(/^@+/, "");
 }
 
+/** A Play Store or App Store link, or an id, as "play:com.example.app" or "apple:123". */
+export function normalizeAppId(raw) {
+  const value = String(raw || "").trim();
+  const play = value.match(/play\.google\.com\/store\/apps\/details\?(?:[^#]*&)?id=([\w.]+)/i);
+  if (play) return `play:${play[1].toLowerCase()}`;
+  const apple = value.match(/apps\.apple\.com\/[^\s]*?\/?id(\d+)/i);
+  if (apple) return `apple:${apple[1]}`;
+  return /^(?:play|apple):[\w.]+$/i.test(value) ? value.toLowerCase() : "";
+}
+
 /** Digits only — formatting varies by bank and carries no meaning. */
 export function normalizeAccount(raw) {
   return String(raw || "").replace(/\D/g, "");
@@ -112,6 +122,8 @@ export function normalizeIdentifier(type, raw) {
       return normalizeDomain(raw) + (String(raw).match(/\/([A-Za-z0-9_]+)\/?$/)?.[1]?.toLowerCase() ?? "");
     case "merchant_id":
       return String(raw || "").trim().toUpperCase();
+    case "app_id":
+      return normalizeAppId(raw);
     case "name":
     default:
       return normalizeName(raw);
@@ -133,16 +145,13 @@ function keyFor(purpose) {
 }
 
 /**
- * HMAC-SHA256 of a normalised identifier.
- *
- * Phone-like values use PHONE_HASH_SALT; everything shared across member
- * organisations uses HMAC_SECRET_KEY. The type is mixed into the message so
- * the same digits as a MoMo number and a bank account do not collide.
+ * HMAC-SHA256 of a normalised identifier, under HMAC_SECRET_KEY. The type is
+ * mixed into the message so the same digits as a MoMo number and a bank account
+ * do not collide.
  */
 export function hashIdentifier(type, normalized) {
   if (!normalized) return "";
-  const purpose = type === "momo_number" || type === "bank_account" ? "phone" : "shared";
-  return crypto.createHmac("sha256", keyFor(purpose)).update(`${type}:${normalized}`).digest("hex");
+  return crypto.createHmac("sha256", keyFor("shared")).update(`${type}:${normalized}`).digest("hex");
 }
 
 /** Normalise and hash in one step. */
@@ -162,14 +171,14 @@ export function buildIdentifier(type, raw, extra = {}) {
 }
 
 /**
- * Sender hashes rotate daily so a number cannot be tracked across days, and
- * the hash itself is cleared after 24 hours.
+ * Sender hashes use PHONE_HASH_SALT and rotate daily, so a number cannot be
+ * tracked across days. They are only used for the fair-use limit in SenderDay.
  */
 export function hashSender(rawSender, date = new Date()) {
   const day = date.toISOString().slice(0, 10);
-  const normalized = normalizePhone(rawSender);
-  if (!normalized) return "";
-  return crypto.createHmac("sha256", keyFor("phone")).update(`sender:${day}:${normalized}`).digest("hex");
+  const reference = String(rawSender || "").trim();
+  if (!reference) return "";
+  return crypto.createHmac("sha256", keyFor("phone")).update(`sender:${day}:${reference}`).digest("hex");
 }
 
 /** "2026-11-01T14" — the aggregation bucket used by Check and Signal. */

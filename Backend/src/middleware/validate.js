@@ -1,6 +1,8 @@
 import { body, query, validationResult } from "express-validator";
 
 import { IDENTIFIER_TYPES } from "../lib/identifiers.js";
+import { API_SCOPES } from "../models/ApiKey.js";
+import { sendError } from "./errorHandler.js";
 
 /**
  * Input validation for every endpoint.
@@ -11,13 +13,15 @@ import { IDENTIFIER_TYPES } from "../lib/identifiers.js";
  * when a bot sends more than it should.
  */
 
-/** Collect express-validator errors into the contract's error shape. */
+export const REVIEW_KINDS = ["record", "relation", "public_report", "contribution", "signal", "notice"];
+
+/** Collect express-validator errors into the /v1 error shape. */
 export function handleValidation(req, res, next) {
   const result = validationResult(req);
   if (result.isEmpty()) return next();
 
   const first = result.array()[0];
-  return res.status(400).json({ error: `Invalid input: ${first.msg}`, code: 400 });
+  return sendError(res, 400, "invalid_input", `Invalid input: ${first.msg}`);
 }
 
 /** Drop any field the endpoint did not declare. */
@@ -53,6 +57,53 @@ export const checkRules = [
   handleValidation,
 ];
 
+const MAX_MESSAGE = 5000;
+const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const PUBLIC_CHANNELS = ["web", "whatsapp", "telegram"];
+
+export const publicCheckRules = [
+  stripUnknown(["text", "urls", "image_base64", "mime_type", "channel", "sender_ref", "recipient", "type"]),
+  body("text").optional({ values: "null" }).isString().withMessage("text must be a string").bail().isLength({ max: MAX_MESSAGE }).withMessage(`text can be up to ${MAX_MESSAGE} characters`),
+  body("urls").optional({ values: "null" }).isArray({ max: 3 }).withMessage("urls must be a list of up to 3 links"),
+  body("urls.*").isString().withMessage("urls must be a list of links").bail().isLength({ max: 2000 }).withMessage("a link is too long"),
+  body("image_base64").optional({ values: "null" }).isString().withMessage("image_base64 must be a string"),
+  body("mime_type").optional({ values: "null" }).isIn(IMAGE_TYPES).withMessage(`mime_type must be one of: ${IMAGE_TYPES.join(", ")}`),
+  body("channel").optional().isIn(PUBLIC_CHANNELS).withMessage(`channel must be one of: ${PUBLIC_CHANNELS.join(", ")}`),
+  body("sender_ref").optional({ values: "null" }).isString().isLength({ max: 200 }).withMessage("sender_ref is too long"),
+  body("recipient").optional({ values: "null" }).isString().isLength({ max: 500 }).withMessage("recipient is too long"),
+  body("type").optional({ values: "null" }).isIn(CHECK_TYPES).withMessage(`type must be one of: ${CHECK_TYPES.join(", ")}`),
+  body().custom((value) => {
+    const hasText = typeof value?.text === "string" && value.text.trim() !== "";
+    const hasUrls = Array.isArray(value?.urls) && value.urls.length > 0;
+    if (value?.recipient && !value?.type) throw new Error("type is required with recipient");
+    if (!hasText && !hasUrls && !value?.image_base64 && !value?.recipient) throw new Error("send text, urls or an image");
+    return true;
+  }),
+  handleValidation,
+];
+
+export const publicReportRules = [
+  stripUnknown(["scheme_name", "identifiers", "evidence_urls", "channel", "sender_ref"]),
+  body("scheme_name").exists({ checkFalsy: true }).withMessage("scheme_name is required").bail().isString().isLength({ max: 200 }).withMessage("scheme_name is too long"),
+  body("identifiers").optional().isArray({ max: 10 }).withMessage("identifiers must be a list of up to 10"),
+  body("identifiers.*.type").isIn(IDENTIFIER_TYPES).withMessage("unknown identifier type"),
+  body("identifiers.*.value").isString().isLength({ min: 1, max: 500 }).withMessage("an identifier value is missing"),
+  body("evidence_urls").optional().isArray({ max: 5 }).withMessage("evidence_urls must be a list of up to 5 links"),
+  body("evidence_urls.*").isURL({ protocols: ["http", "https"], require_protocol: true }).withMessage("evidence_urls must be links"),
+  body("channel").optional().isIn(PUBLIC_CHANNELS).withMessage(`channel must be one of: ${PUBLIC_CHANNELS.join(", ")}`),
+  body("sender_ref").optional({ values: "null" }).isString().isLength({ max: 200 }),
+  handleValidation,
+];
+
+export const appealRules = [
+  stripUnknown(["type", "value", "contact", "reason"]),
+  body("type").isIn(IDENTIFIER_TYPES).withMessage(`type must be one of: ${IDENTIFIER_TYPES.join(", ")}`),
+  body("value").exists({ checkFalsy: true }).withMessage("value is required").bail().isString().isLength({ max: 500 }),
+  body("contact").exists({ checkFalsy: true }).withMessage("contact is required").bail().isString().isLength({ max: 200 }),
+  body("reason").exists({ checkFalsy: true }).withMessage("reason is required").bail().isString().isLength({ max: 2000 }),
+  handleValidation,
+];
+
 export const contributionRules = [
   stripUnknown(["schemeName", "identifiers", "terms", "region", "lossBand", "evidenceRefs"]),
   body("schemeName").exists({ checkFalsy: true }).withMessage("schemeName is required").bail().isString().isLength({ max: 300 }),
@@ -67,9 +118,32 @@ export const contributionRules = [
 ];
 
 export const feedRules = [
-  query("since").exists({ checkFalsy: true }).withMessage("since parameter required").bail().isISO8601().withMessage("since must be an ISO 8601 date"),
+  query("since").optional().isISO8601().withMessage("since must be an ISO 8601 date"),
+  query("cursor").optional().isString().isLength({ max: 200 }),
   query("format").optional().isIn(["json", "csv"]).withMessage("format must be json or csv"),
   query("limit").optional().isInt({ min: 1, max: 1000 }).withMessage("limit must be between 1 and 1000"),
+  handleValidation,
+];
+
+export const loginRules = [
+  stripUnknown(["email", "password"]),
+  body("email").isString().withMessage("email is required").bail().isLength({ min: 3, max: 200 }),
+  body("password").isString().withMessage("password is required").bail().isLength({ min: 1, max: 200 }),
+  handleValidation,
+];
+
+export const apiKeyRules = [
+  stripUnknown(["scopes"]),
+  body("scopes").isArray({ min: 1 }).withMessage("scopes must be a list with at least one scope"),
+  body("scopes.*").isIn(API_SCOPES).withMessage(`scopes must be from: ${API_SCOPES.join(", ")}`),
+  handleValidation,
+];
+
+export const reviewRules = [
+  stripUnknown(["kind", "decision", "quote"]),
+  body("quote").optional({ values: "null" }).isString().isLength({ max: 1000 }).withMessage("quote is too long"),
+  body("kind").isIn(REVIEW_KINDS).withMessage(`kind must be one of: ${REVIEW_KINDS.join(", ")}`),
+  body("decision").isIn(["approve", "reject"]).withMessage("decision must be approve or reject"),
   handleValidation,
 ];
 

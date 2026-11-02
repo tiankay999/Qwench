@@ -1,6 +1,6 @@
 // DEPRECATED — replaced by the new data model (Entity + Identifier + Record).
 // See src/models/index.js. Still backing the live risk engine until the
-// cutover; migrate with src/scripts/migrateOldData.js, then retire this file.
+// cutover; `src/scripts/migrate-legacy.js` copies the list as pending; retire this file in Phase 6.
 
 import mongoose from "mongoose";
 

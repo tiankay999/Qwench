@@ -1,4 +1,4 @@
-import { extract, mergeAiCandidates } from "../engine/extract.js";
+import { HIDDEN_AI_IMAGE_SIGN, HIDDEN_AI_TEXT_SIGN, aiWarningSigns, aimedAtAi, cleanText, extract, mergeAiCandidates } from "../engine/extract.js";
 import { NOTES, alsoCheckedLine } from "../engine/report.js";
 import { EXACT_MATCH_ONLY, hashIdentifier, normalizeIdentifier, normalizeName } from "../lib/identifiers.js";
 import { Merchant, PublicReport } from "../models/index.js";
@@ -67,7 +67,8 @@ async function readLinks(links, { scrape, readPage }, notes) {
       const page = await scrape(link);
       if (page.error) return { error: true };
       const ai = await readPage(link, { page }).catch(() => null);
-      return { text: [page.title, page.metaDescription, page.bodyText].filter(Boolean).join(" "), ai };
+      // The meta description is left out: nobody sees it on the page.
+      return { text: [page.title, page.bodyText].filter(Boolean).join(" "), ai, hiddenAtAi: aimedAtAi(page.hiddenText) };
     })
   );
   if (pages.some((p) => p.error)) notes.push(NOTES.linkUnread);
@@ -75,11 +76,12 @@ async function readLinks(links, { scrape, readPage }, notes) {
 }
 
 export async function checkMessage(input, deps = {}) {
-  const { text = "", urls = [], image_base64: imageBase64, mime_type: mimeType, recipient, type, channel = "web" } = input;
+  const { urls = [], image_base64: imageBase64, mime_type: mimeType, recipient, type, channel = "web" } = input;
   const scrape = deps.scrape || scrapeUrl;
   const readPage = deps.readPage || extractFromUrl;
   const readImage = deps.readImage || extractFromImage;
 
+  const text = cleanText(input.text);
   const notes = [];
   const fromMessage = extract([text, ...urls].join("\n"));
 
@@ -148,6 +150,16 @@ export async function checkMessage(input, deps = {}) {
     .map((c) => alsoCheckedLine(c.result.entity || c.value, c.result.report.state_sentence));
 
   const { result } = lead;
+
+  // Signs AI spotted, each proven against what was really read, in fixed wording.
+  // Kept apart from the rules' signs, and they change no status, tier or action.
+  const aiSigns = [
+    ...aiWarningSigns(image, image?.extracted_text, { fromImage: true }),
+    ...pages.flatMap((p) => aiWarningSigns(p.ai, p.text)),
+  ];
+  result.report.ai_warning_signs = [...new Set(aiSigns)].filter((sign) => !result.report.warning_signs.includes(sign));
+  if (pages.some((p) => p.hiddenAtAi)) result.report.warning_signs.push(HIDDEN_AI_TEXT_SIGN);
+  if (aimedAtAi(image?.hidden_text)) result.report.warning_signs.push(HIDDEN_AI_IMAGE_SIGN);
   result.report.also_checked = [...new Set(others)];
   result.report.notes = notes;
 

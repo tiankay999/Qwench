@@ -297,7 +297,8 @@ function maskForPublic(result) {
 async function finish(result, { audience, text, extraText }) {
   if (audience !== "institution") maskForPublic(result);
 
-  const reportText = text || extraText || "";
+  // A partner's stated terms are partner data, so only institutions see them used.
+  const reportText = text || (audience === "institution" ? extraText : "") || "";
   result.return_check = returnCheck(reportText);
   result.warning_signs = warningSigns(text || "");
   result.report = buildReport({

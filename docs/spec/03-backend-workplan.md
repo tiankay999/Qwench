@@ -31,8 +31,8 @@ The bot calls `/api/check`, `/api/report`, `/api/trending`, `/api/verify-name`,
 `/api/evidence/image`, `/api/evidence/url` and `/health` through `WhatsappBot/src/api.js`.
 
 **Setup:** disk space may be tight. Keep the test MongoDB copy and the pnpm store in
-`/tmp` if needed. Stop and report if free space falls below 150 MB. Model names can't be
-checked without a key, so list that as not done. Everything must work with no AI provider.
+`/tmp` if needed. Stop and report if free space falls below 150 MB. The default model,
+`gemini-3.5-flash-lite`, was confirmed working on 2 November 2026. Everything must work with no AI provider.
 
 ## Progress
 | Phase | Status | Commit on `backend-v1` |
@@ -45,6 +45,7 @@ checked without a key, so list that as not done. Everything must work with no AI
 | 3 Evidence engine | Done | `8cef2b8` |
 | Public replies reveal nothing hidden | Done | `d505d29` |
 | 4 Public API | Done | `83aeeb6` |
+| Real AI test, image fixes | Done | `e0ca91e` |
 | 5 Institution API | Done | `3748da1` |
 | 6 onwards | Not started | |
 
@@ -162,7 +163,10 @@ If `src/data/reviewed/` is empty, use test fixtures for tests and tell Dre that 
 
 1. **Extract:** names, domains, numbers, wallets, stated returns and warning signs,
    using rules first. AI can add candidates, but each must literally appear in the
-   input. AI failure never fails the check.
+   input. AI failure never fails the check. Text AI reads is never shown, so it isn't
+   discarded for holding banned words: that would let a flyer saying "100% safe" skip
+   the check. For images, AI's own reading is the only text to compare with, so
+   image results carry a note asking people to confirm the details.
 2. **Normalise:**
    - `0241234567`, `233241234567` and `+233 24 123 4567` become `+233241234567`.
    - Domains: lowercase, without protocol, `www` or path.

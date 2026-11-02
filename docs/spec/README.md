@@ -65,7 +65,7 @@ Stay in your own area. If you need something from another owner, list it for the
 - **Reviewed impersonation is public:** Dre decided this on 2 November 2026. It shows as tier 2, naming the business, once a second person has reviewed it. Partner data, reports and signals stay out of public replies.
 - **Tier 2 payment-screen warnings:** only where the institution has opted in. Partner data never reaches a public reply.
 - **Appeals:** replies answer only about what is publicly shown, and never confirm or deny internal data.
-- **AI:** it only reads images and linked pages for the evidence engine. It never decides. It runs behind rules, and every check works without it. It has not yet been tested against a real provider.
+- **AI:** it only reads images and linked pages for the evidence engine. It never decides. Rules run first, every check works without it, and an image-based result is labelled. Tested against real `gemini-3.5-flash-lite` with made-up flyers on 2 November 2026, not yet real screenshots. What it reads is never shown, and is kept even if it holds banned words, so a flyer's wording can't hide it from the check.
 - **Evidence engine:** `src/services/evidenceEngine.js` is the only engine. `checkService.js` is deprecated.
 
 ## Code already on `main`

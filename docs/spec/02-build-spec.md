@@ -213,6 +213,27 @@ Show honest empty states: *"No member reports yet."*
 - **No claim** when a business isn't registered. Registered merchants are never flagged automatically.
 - **Screens:** registration, review queue, merchant dashboard.
 
+### After the hackathon: official registry
+**Don't build this yet.** Until then, the feature, the code and the pitch all stay "merchant registry". The aim is to extend it so people can ask whether an offer really came from a company. Qwench never calls an offer "legitimate". It reports these facts:
+
+| Question | How it's checked | Example reply |
+|---|---|---|
+| Is this contact theirs? | Compare the number, website or social handle with what the company registered | "This number is registered by [Company]." |
+| Did they publish this offer? | Compare it with the company's current listed offers | "[Company] lists this offer, reference 123. Qwench hasn't assessed this offer." |
+| Are they allowed to operate? | Regulator records | "[Company] is licensed by the SEC as a fund manager." |
+| Does the company know about it? | Ask the company on its registered contact, through a case | After a person reviews it: "[Company] told us this offer isn't theirs." |
+
+- **Contact decides first:** a scheme can copy a real offer's wording or reference. If the contact isn't registered to the company, the mismatch is what's shown, even if the offer is listed.
+- **Unregistered companies:** make no negative claim. Say "[Company] hasn't registered its contacts with us, so we can't confirm this."
+- **Limits of a licence:** a licence says the firm may operate, not that a given offer came from it.
+- **Limits of registration:** a registered channel can be taken over, so registration doesn't prove a given message is genuine.
+- **Offer upkeep:** listed offers need end dates, and companies must renew their entries.
+- **Who can register:** the same proof of ownership and human approval as the merchant registry, plus a named contact.
+- **Asking a company:** Qwench may contact the company being impersonated, and never the suspect.
+- **Brand Watch:** it reads official contacts from the same registry, so companies keep one list.
+- **Cost to customers:** the public check stays free, companies pay to be listed, and Know Your Payee uses the same comparison at payment.
+- **Needs before building:** a legal review of "lists this offer" under Act 1154, so it can't read as an endorsement or advice.
+
 ### Brand Watch
 - **Setup:** brand name, official domains and numbers, keywords.
 - **First sources:** bot and web checks mentioning the brand, user-forwarded links, look-alike domain checks, and findings logged by a reviewer.

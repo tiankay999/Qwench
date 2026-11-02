@@ -363,6 +363,7 @@ Do Phases 7 to 10 in this order. If time runs out, stop and they stay "Next" in 
   as [business], but not one of its registered numbers."
 - Make no claim about unregistered businesses.
 - Registered merchants are never flagged automatically.
+- Keep the `Merchant` model and `/v1/merchants` routes. Don't add offers in this phase. The official registry in `02-build-spec.md` comes after the hackathon.
 
 ## Phase 10: Brand Watch
 - Setup: brand name, official domains and numbers, keywords.

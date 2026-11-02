@@ -203,7 +203,7 @@ About 85% of revenue comes from institutions. Merchant revenue and other countri
 | **Now** | Reviewed record, public check, first version of the API and console |
 | **Months 1–6** | Regulator partnerships, MTN and bank pilots, data protection registration, WhatsApp Cloud API |
 | **Months 7–12** | Shared layer with real partners, payment-screen warnings, USSD, paying customers |
-| **Month 13 onward** | Licensed firms, a wider market in Ghana, then Nigeria and Kenya |
+| **Month 13 onward** | Licensed firms, a wider market in Ghana, then Nigeria and Kenya. Extend the merchant registry so people can check whether a contact or offer was listed by the company |
 
 **Why it lasts after licensing:** schemes don't apply for licences, licensed names become worth impersonating, and regulators will always move more slowly than schemes.
 

@@ -148,6 +148,10 @@ They're our assumptions, set below global benchmarks and to be tested in pilots.
 
 Ghana is about GH₵13.4M a year on our assumptions, and that's the starting point. Each new country is a data pack and a legal review, with Nigeria and then Kenya next.
 
+**How do you know an offer really came from a company?**
+
+We don't call an offer legitimate, and we won't. Today, a business can register its official numbers, and we can say whether a number is one of them. Next, companies could list their offers too. If the contact doesn't match, we say so and show the source.
+
 **Can someone pay to remove a warning?**
 
 No. Nobody can pay for a better result or hide a warning. Correcting a record goes through the appeal route, and only on evidence.

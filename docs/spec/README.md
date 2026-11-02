@@ -95,7 +95,6 @@ Backend progress and open bugs are in [03-backend-workplan.md](03-backend-workpl
 | Gap | What the spec needs |
 |---|---|
 | `did_you_mean` is in replies, but the bot still calls `/api/verify-name`, which suggests unreviewed names | Move the bot over, so `/api/verify-name` can retire |
-| No `/v1/console` routes | Login, lookup, payment check, feed, keys, review queue |
 | `reviewRecords.js` approves records in bulk | Don't use it for real data. Every record needs a real second review. Migrated records have no quote, so it can't activate them |
 | The bot's "On file, awaiting review" message | Remove it from `messages.js`. Pending records are no longer returned, so `pending_records` is gone |
 | Feed may include partner data | Confirm that partner numbers never appear in it |

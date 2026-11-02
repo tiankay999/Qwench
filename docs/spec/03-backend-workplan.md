@@ -45,7 +45,8 @@ checked without a key, so list that as not done. Everything must work with no AI
 | 3 Evidence engine | Done | `8cef2b8` |
 | Public replies reveal nothing hidden | Done | `d505d29` |
 | 4 Public API | Done | `83aeeb6` |
-| 5 onwards | Not started | |
+| 5 Institution API | Done | `3748da1` |
+| 6 onwards | Not started | |
 
 Known bugs from the review that are still open, by phase:
 - **Not built:** domain age, because nothing is cached yet.
@@ -293,6 +294,14 @@ An unknown recipient returns `match: false`, `state: "no_record"`, `suggested_ac
 - `GET /review-queue` and `POST /review-queue/:id` for reviewers, with no self-approval
 
 Console routes exist so no API key ever sits in the browser. Log every review in `AuditLog`.
+
+**How it was built:**
+- The session is an httpOnly cookie, valid for 8 hours. Pages can't read it. A deactivated user stops working at once.
+- Only reviewers in a `qwench` organisation can use the review queue, because it holds every organisation's submissions.
+- The queue covers records, relations, public reports, contributions and signals. A record with no quote can't be approved, so the legacy list can't go live through it.
+- `pnpm user:create` creates console users. There is no sign-up route.
+- A demo organisation's feed includes demo and real records. Others get real records only.
+- **Not built:** a console route to capture an impersonation. Relations can be approved in the queue, but only a script can create them until Phase 7.
 
 **Stop here if time is short.** Phases 0 to 5 and Phase 6 are the must-haves.
 

@@ -87,6 +87,7 @@ No. We never contact suspects, because investigation belongs to the authorities.
 It reads forwarded messages and pulls out names, numbers and links. It doesn't decide what's fraud. Only the reviewed record does that.
 
 **Can't a scammer just look themselves up?**
+
 Yes, and they'll see only what is already public: regulator and sanctions records, legal states and reviewed impersonation. What partners have confirmed stays private, and a number with hidden reports looks exactly like a number with none. If they change number, a forwarded offer links the new one back to the same scheme.
 
 ### Law and regulators

@@ -335,6 +335,7 @@ async function finish(result, { audience, text, extraText }) {
   result.warning_signs = warningSigns(text || "");
   result.report = buildReport({
     state: result.state,
+    tier: result.tier,
     entity: result.entity,
     sources: result.state === "no_record" && !result.impersonated ? [] : result.sources,
     foreignContext: result.foreign_context,

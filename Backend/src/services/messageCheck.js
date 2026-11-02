@@ -1,5 +1,5 @@
 import { HIDDEN_AI_IMAGE_SIGN, HIDDEN_AI_TEXT_SIGN, aiWarningSigns, aimedAtAi, cleanText, extract, mergeAiCandidates } from "../engine/extract.js";
-import { NOTES, alsoCheckedLine, linkFact } from "../engine/report.js";
+import { NOTES, alsoCheckedLine, evidenceLevel, linkFact } from "../engine/report.js";
 import { EXACT_MATCH_ONLY, hashIdentifier, normalizeDomain, normalizeIdentifier, normalizeName } from "../lib/identifiers.js";
 import { Merchant, PublicReport } from "../models/index.js";
 import { extractFromImage, extractFromUrl } from "./aiExtractor.js";
@@ -218,6 +218,16 @@ export async function checkMessage(input, deps = {}) {
 
   const directDomain = recipient && ["domain", "url"].includes(type) ? [normalizeDomain(recipient)] : [];
   result.report.link_facts = await linkFacts({ domains: [...new Set([...found.domains, ...directDomain])].filter(Boolean), pages, ageOf });
+
+  // Set again now every rule-based finding is in. Signs AI spotted don't count.
+  result.report.evidence_level = evidenceLevel({
+    state: result.state,
+    tier: result.tier,
+    impersonated: result.impersonated,
+    foreignContext: result.foreign_context,
+    merchantClaim: result.merchant_claim,
+    signCount: result.report.warning_signs.length + result.report.link_facts.length,
+  });
   if (aimedAtAi(image?.hidden_text)) result.report.warning_signs.push(HIDDEN_AI_IMAGE_SIGN);
   result.report.also_checked = [...new Set(others)];
   result.report.notes = notes;

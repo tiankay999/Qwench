@@ -103,6 +103,22 @@ for (const label of Object.keys(HIDDEN)) {
   });
 }
 
+test("hidden data never shows in the evidence level", async () => {
+  for (const label of Object.keys(HIDDEN)) {
+    const body = await v1(numbers[label]);
+    assert.equal(body.report.evidence_level.code, "not_enough", label);
+    assert.doesNotMatch(JSON.stringify(body.report.evidence_level), /member|partner|report/i, label);
+  }
+});
+
+test("institutions see what the evidence is", async () => {
+  const { evaluate } = await import("../src/services/evidenceEngine.js");
+  const partner = await evaluate({ recipient: numbers["partner-confirmed"], type: "momo_number", audience: "institution" });
+  assert.equal(partner.report.evidence_level.code, "member_confirmed");
+  const reports = await evaluate({ recipient: numbers["tier 3 reports"], type: "momo_number", audience: "institution" });
+  assert.equal(reports.report.evidence_level.code, "corroborated_reports");
+});
+
 test("a no-record reply has no internal fields", async () => {
   const body = await v1(NO_RECORD);
   assert.equal(body.match, false);

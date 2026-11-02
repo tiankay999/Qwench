@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 process.env.HMAC_SECRET_KEY = "test-only-hmac-secret-key";
 
-const { ALL_TEMPLATES, NO_RECORD_SENTENCE, buildReport, returnCheck } = await import("../src/engine/report.js");
+const { ALL_TEMPLATES, DISCLAIMER, EVIDENCE_LEVELS, NO_RECORD_SENTENCE, buildReport, evidenceLevel, returnCheck } = await import("../src/engine/report.js");
 const { AI_RED_FLAGS, aiWarningSigns, aimedAtAi, cleanText, extract, mergeAiCandidates, warningSigns } = await import("../src/engine/extract.js");
 
 const ALLOWED = "This does not mean it is safe or unsafe.";
@@ -52,7 +52,7 @@ test("banned words: an impersonation report", () => {
 
 test("every report has the fixed parts, in order", () => {
   const report = buildReport({ ...SAMPLE, state: "named_in_notice" });
-  assert.deepEqual(Object.keys(report), ["state_sentence", "foreign_context", "also_checked", "sources", "return_check", "warning_signs", "ai_warning_signs", "link_facts", "questions_to_ask", "notes", "footer"]);
+  assert.deepEqual(Object.keys(report), ["state_sentence", "foreign_context", "also_checked", "sources", "return_check", "warning_signs", "ai_warning_signs", "link_facts", "questions_to_ask", "notes", "evidence_level", "disclaimer", "footer"]);
 });
 
 test("no record says it isn't a clean result", () => {
@@ -301,3 +301,58 @@ for (const text of ["Pay MoMo 0240000080", "We keep your data private", "Tell yo
     for (const code of ["secrecy", "pay_personal_account", "unusual_payment"]) assert.ok(!signs.includes(AI_RED_FLAGS[code].sign), code);
   });
 }
+
+/* --- Evidence levels ---------------------------------------------------- */
+
+const levelOf = (input) => evidenceLevel(input).code;
+
+for (const [label, input, code] of [
+  ["a Ghana notice", { state: "named_in_notice", tier: 1 }, "regulator_warning"],
+  ["a notice, with no signs needed", { state: "named_in_notice", tier: 1, signCount: 0 }, "regulator_warning"],
+  ["a reviewed impersonation", { state: "no_record", tier: 2, impersonated: "A Business" }, "reviewed_impersonation"],
+  ["three signs and no record", { state: "no_record", signCount: 3 }, "many_signs"],
+  ["six signs and no record", { state: "no_record", signCount: 6 }, "many_signs"],
+  ["two signs and no record", { state: "no_record", signCount: 2 }, "some_signs"],
+  ["one sign and no record", { state: "no_record", signCount: 1 }, "some_signs"],
+  ["nothing at all", { state: "no_record", signCount: 0 }, "not_enough"],
+  ["nothing, with defaults", { state: "no_record" }, "not_enough"],
+  ["a licence", { state: "licensed" }, "on_regulator_list"],
+  ["a sandbox place", { state: "sandbox" }, "on_regulator_list"],
+  ["a regulator's registration", { state: "registered" }, "on_regulator_list"],
+  ["a licensed firm with signs in the message", { state: "licensed", signCount: 5 }, "on_regulator_list"],
+  ["a registered merchant", { state: "registered", merchantClaim: { business: "Shop" } }, "registered_business"],
+  ["a regulator", { state: "authority" }, "regulator_or_public_body"],
+  ["a foreign alert only", { state: "no_record", foreignContext: [{ jurisdiction: "GB" }] }, "foreign_alert"],
+  ["a foreign alert outranks signs", { state: "no_record", foreignContext: [{ jurisdiction: "GB" }], signCount: 5 }, "foreign_alert"],
+  ["partner-confirmed", { state: "no_record", tier: 2 }, "member_confirmed"],
+  ["corroborated reports", { state: "no_record", tier: 3 }, "corroborated_reports"],
+  ["a reviewed signal", { state: "no_record", tier: 4 }, "rise_in_checks"],
+]) {
+  test(`evidence level: ${label}`, () => assert.equal(levelOf(input), code));
+}
+
+for (const [code, level] of Object.entries(EVIDENCE_LEVELS)) {
+  test(`evidence level ${code} has a label and meaning, with no banned words or numbers`, () => {
+    assert.ok(level.label && level.meaning);
+    assert.doesNotMatch(`${level.label} ${level.meaning}`, BANNED);
+    assert.doesNotMatch(`${level.label} ${level.meaning}`, /\d|%|score|likely|probably/i);
+  });
+}
+
+test("a list entry says it doesn't vouch for an investment", () => {
+  assert.match(EVIDENCE_LEVELS.on_regulator_list.meaning, /doesn't mean an investment will pay/);
+});
+
+test("every report has a level and the disclaimer", () => {
+  const report = buildReport({ state: "no_record", sources: [], dataDate: null });
+  assert.deepEqual(report.evidence_level, { code: "not_enough", ...EVIDENCE_LEVELS.not_enough });
+  assert.equal(report.disclaimer, DISCLAIMER);
+  assert.match(DISCLAIMER, /not a final ruling/);
+  assert.match(DISCLAIMER, /appeal/);
+  assert.doesNotMatch(DISCLAIMER, BANNED);
+});
+
+test("a report counts the signs the rules found in its text", () => {
+  const report = buildReport({ state: "no_record", sources: [], text: "Guaranteed returns! Tell nobody. Refer 5 friends." });
+  assert.equal(report.evidence_level.code, "many_signs");
+});

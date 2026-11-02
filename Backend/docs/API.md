@@ -63,6 +63,8 @@ Reply:
   "reason_codes": [],
   "did_you_mean": null,
   "report": {
+    "evidence_level": { "code": "some_signs", "label": "Some warning signs, no regulator record", "meaning": "" },
+    "disclaimer": "This is not a final ruling. It reflects what Qwench could check today. If it's wrong, you can appeal.",
     "state_sentence": "No record found. This does not mean it is safe or unsafe.",
     "foreign_context": [],
     "also_checked": [],
@@ -86,17 +88,20 @@ Reply:
 
 `warning_signs` come from fixed rules. `ai_warning_signs` were spotted by AI in an image or page, from a fixed list, with the proof checked against what was read. Show them under a label such as "Spotted by AI". Neither changes `state` or `tier`. Don't show either as a verdict.
 
+`evidence_level` is the headline answer. It grades how much evidence there is, never the scheme, and is set by fixed rules. Show it first, and always show `disclaimer` with it. Signs AI spotted don't count toward it.
+
 `link_facts` are plain facts about any links: where a link really leads, shorteners, website endings, no HTTPS, password and payment forms, and sites under 90 days old. A link is also checked against records at the address it lands on. An unknown age says nothing. None of these change `state` or `tier`.
 
 `also_checked` lists anything else found in the message, one line each. The reply leads with the most significant result, and an unknown payment number outranks a licensed name mentioned beside it.
 
-**How to show it:** use `report` in this order: `state_sentence`, `foreign_context`, `sources`, `also_checked`, `return_check.note`, `warning_signs`, `ai_warning_signs`, `link_facts`, `questions_to_ask`, `notes`, `footer`. If `is_demo` is true, label the screen "Demo data".
+**How to show it:** use `report` in this order: `evidence_level.label`, `evidence_level.meaning`, `state_sentence`, `foreign_context`, `sources`, `also_checked`, `return_check.note`, `warning_signs`, `ai_warning_signs`, `link_facts`, `questions_to_ask`, `notes`, `disclaimer`, `footer`. If `is_demo` is true, label the screen "Demo data".
 
 | Field | Values |
 |---|---|
 | `state` | `named_in_notice`, `licensed`, `sandbox`, `registered`, `authority`, `no_record` |
 | `tier` | `1` for a regulator notice or sanctions listing, `2` for a reviewed impersonation, otherwise `null` |
 | `reason_codes` | `REGULATOR_NOTICE`, `SANCTIONS_LIST`, `ADVERTISED_AS_BUSINESS_NOT_REGISTERED` |
+| `report.evidence_level.code` | Public: `regulator_warning`, `reviewed_impersonation`, `foreign_alert`, `many_signs`, `some_signs`, `on_regulator_list`, `registered_business`, `regulator_or_public_body`, `not_enough`. Institutions can also get `member_confirmed`, `corroborated_reports`, `rise_in_checks` |
 | `did_you_mean` | `{ "suggested_entity": "Apple" }` for a close name, otherwise `null`. If the user picks it, check that name. It is never a match |
 
 **What a public reply can reveal:** only regulator and sanctions records, legal states and reviewed impersonation. Partner data, reports, signals and open cases look exactly like `no_record`. Don't try to infer more from a reply.

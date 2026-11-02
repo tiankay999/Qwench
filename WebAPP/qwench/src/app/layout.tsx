@@ -6,6 +6,7 @@ import { ThemeProvider } from "next-themes";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { FloatingWhatsApp } from "@/components/layout/FloatingWhatsApp";
+import { PublicOnly } from "@/components/layout/PublicOnly";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -29,11 +30,17 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col antialiased">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
           <Suspense>
-            <Navbar />
+            <PublicOnly>
+              <Navbar />
+            </PublicOnly>
           </Suspense>
           <main className="flex-1">{children}</main>
-          <Footer />
-          <FloatingWhatsApp />
+          <Suspense>
+            <PublicOnly>
+              <Footer />
+              <FloatingWhatsApp />
+            </PublicOnly>
+          </Suspense>
         </ThemeProvider>
       </body>
     </html>

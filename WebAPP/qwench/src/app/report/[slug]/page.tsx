@@ -1,26 +1,54 @@
-import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import Link from "next/link";
-import { Share2 } from "lucide-react";
-import { riskReports } from "@/lib/mock-data";
+import type { Metadata } from "next";
+import { cacheLife } from "next/cache";
+import { AlertCircle, ArrowLeft } from "lucide-react";
+import { checkName, fromSlug, toSlug, type CheckResult } from "@/lib/qwench";
+import { FEATURED_CHECKS } from "@/lib/content";
+import { EvidenceReport } from "@/components/evidence/EvidenceReport";
+import { WatchButton } from "@/components/watchlist/WatchButton";
+import { ShareButton } from "@/components/ui/ShareButton";
 
+/**
+ * A permanent link for one name.
+ *
+ * There is no endpoint that returns an entity by slug, and adding one is the
+ * backend owner's call — see docs/spec/README.md, "Who owns what". So the slug
+ * is turned back into a name and checked the same way the bot checks it. Asking
+ * by exact name also skips the "did you mean" step, which belongs on /search
+ * where someone is there to answer it.
+ */
 export function generateStaticParams() {
-  return Object.keys(riskReports).map((slug) => ({ slug }));
+  return FEATURED_CHECKS.map((name) => ({ slug: toSlug(name) }));
 }
-import { RiskGauge } from "@/components/report/RiskGauge";
-import { VerdictBanner } from "@/components/report/VerdictBanner";
-import { BreakdownGrid } from "@/components/report/BreakdownGrid";
-import { RelatedSearches } from "@/components/report/RelatedSearches";
-import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
 
-export default async function ReportPage({
+export async function generateMetadata({
   params,
 }: {
   params: Promise<{ slug: string }>;
-}) {
+}): Promise<Metadata> {
   const { slug } = await params;
-  const report = riskReports[slug];
-  if (!report) notFound();
+  const name = fromSlug(slug);
+  return {
+    title: `${name} — Qwench check`,
+    description: `What official sources say about ${name}, with dates and links. Information, not advice.`,
+  };
+}
+
+/** Cached so a shared link doesn't run a fresh check for every visitor. */
+async function load(name: string): Promise<CheckResult | null> {
+  "use cache";
+  cacheLife("hours");
+  try {
+    return await checkName(name);
+  } catch {
+    return null;
+  }
+}
+
+export default async function ReportPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const name = fromSlug(slug);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
@@ -29,38 +57,70 @@ export default async function ReportPage({
           Home
         </Link>
         {" › "}
-        <span>Risk Report</span>
-        {" › "}
-        <span className="text-text-primary">{report.name}</span>
+        <span className="text-text-primary">{name}</span>
       </nav>
 
-      <div className="grid grid-cols-1 md:grid-cols-[1fr_300px] gap-8 mb-10">
-        <div className="flex flex-col sm:flex-row items-start gap-6">
-          <RiskGauge score={report.score} />
-          <VerdictBanner
-            name={report.name}
-            risk={report.risk}
-            riskLabel={report.riskLabel}
-          />
-        </div>
+      <Suspense fallback={<Skeleton name={name} />}>
+        <Result name={name} />
+      </Suspense>
+    </div>
+  );
+}
 
-        <div className="space-y-4">
-          <Link href={`/submit?target=${report.slug}`} className="block">
-            <Button variant="danger" className="w-full">
-              Report This Investment
-            </Button>
-          </Link>
-          <button className="flex items-center justify-center gap-2 w-full text-sm text-text-secondary hover:text-text-primary transition-colors cursor-pointer min-h-[44px]">
-            <Share2 className="w-4 h-4" />
-            Share Report
-          </button>
-          <Card className="!p-4">
-            <RelatedSearches searches={report.relatedSearches} />
-          </Card>
+async function Result({ name }: { name: string }) {
+  const result = await load(name);
+
+  if (!result) {
+    return (
+      <div className="rounded-xl border border-danger/30 bg-danger/5 p-6">
+        <div className="flex items-center gap-2 mb-2">
+          <AlertCircle className="w-4 h-4 text-danger" aria-hidden />
+          <h1 className="font-bold text-text-primary">Couldn&apos;t reach Qwench</h1>
         </div>
+        <p className="text-sm text-text-secondary">
+          This page could not be checked just now. Nothing about{" "}
+          <span className="font-semibold">{name}</span> should be read into that.
+        </p>
+        <Link
+          href={`/search?q=${encodeURIComponent(name)}`}
+          className="inline-flex items-center mt-4 rounded-lg border border-border px-4 py-2 text-sm font-semibold text-text-primary hover:bg-surface-alt transition-colors min-h-[44px]"
+        >
+          Try the search page
+        </Link>
       </div>
+    );
+  }
 
-      <BreakdownGrid report={report} />
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-10">
+      <EvidenceReport result={result} query={name} />
+      <aside className="space-y-3 lg:pt-16">
+        <WatchButton name={result.entity || name} />
+        <ShareButton title={`Qwench check: ${result.entity || name}`} />
+        <Link
+          href={`/report-scheme?name=${encodeURIComponent(result.entity || name)}`}
+          className="flex items-center justify-center w-full rounded-lg border border-border px-4 py-2.5 text-sm font-semibold text-text-primary hover:bg-surface-alt transition-colors min-h-[44px]"
+        >
+          Report this
+        </Link>
+        <Link
+          href="/appeal"
+          className="flex items-center justify-center w-full rounded-lg border border-border px-4 py-2.5 text-sm font-semibold text-text-primary hover:bg-surface-alt transition-colors min-h-[44px]"
+        >
+          Appeal this listing
+        </Link>
+      </aside>
+    </div>
+  );
+}
+
+function Skeleton({ name }: { name: string }) {
+  return (
+    <div className="space-y-4 animate-pulse" aria-busy="true" aria-label={`Checking ${name}`}>
+      <div className="h-9 w-2/3 rounded-lg bg-surface-alt" />
+      <div className="h-7 w-48 rounded-lg bg-surface-alt" />
+      <div className="h-24 rounded-xl bg-surface-alt" />
+      <div className="h-36 rounded-xl bg-surface-alt" />
     </div>
   );
 }

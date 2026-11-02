@@ -22,6 +22,7 @@ const signalSchema = new mongoose.Schema(
 
     anomalyFlag: { type: Boolean, default: false },
     reviewStatus: { type: String, enum: SIGNAL_REVIEW_STATUSES, default: "pending" },
+    isDemo: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

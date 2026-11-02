@@ -25,8 +25,15 @@ let mongo;
 
 export async function startDb() {
   // MongoDB gets 10 seconds to start by default, too short with one instance per
-  // test file on a busy machine.
-  mongo = await MongoMemoryServer.create({ instance: { launchTimeout: 60000 } });
+  // test file on a busy machine. Test files starting together can also pick the same
+  // free port, so a clash is tried again.
+  for (let attempt = 1; !mongo; attempt += 1) {
+    try {
+      mongo = await MongoMemoryServer.create({ instance: { launchTimeout: 60000 } });
+    } catch (err) {
+      if (attempt >= 5 || !/already in use/i.test(err.message)) throw err;
+    }
+  }
   await mongoose.connect(mongo.getUri());
   // Build indexes now, so tests see the same constraints as a real database.
   await Promise.all(Object.values(mongoose.models).map((model) => model.init()));

@@ -1,6 +1,7 @@
 import { body, query, validationResult } from "express-validator";
 
 import { IDENTIFIER_TYPES } from "../lib/identifiers.js";
+import { API_SCOPES } from "../models/ApiKey.js";
 import { sendError } from "./errorHandler.js";
 
 /**
@@ -11,6 +12,8 @@ import { sendError } from "./errorHandler.js";
  * into a Mongoose write, and what keeps raw message text out of the system
  * when a bot sends more than it should.
  */
+
+export const REVIEW_KINDS = ["record", "relation", "public_report", "contribution", "signal"];
 
 /** Collect express-validator errors into the /v1 error shape. */
 export function handleValidation(req, res, next) {
@@ -115,9 +118,31 @@ export const contributionRules = [
 ];
 
 export const feedRules = [
-  query("since").exists({ checkFalsy: true }).withMessage("since parameter required").bail().isISO8601().withMessage("since must be an ISO 8601 date"),
+  query("since").optional().isISO8601().withMessage("since must be an ISO 8601 date"),
+  query("cursor").optional().isString().isLength({ max: 200 }),
   query("format").optional().isIn(["json", "csv"]).withMessage("format must be json or csv"),
   query("limit").optional().isInt({ min: 1, max: 1000 }).withMessage("limit must be between 1 and 1000"),
+  handleValidation,
+];
+
+export const loginRules = [
+  stripUnknown(["email", "password"]),
+  body("email").isString().withMessage("email is required").bail().isLength({ min: 3, max: 200 }),
+  body("password").isString().withMessage("password is required").bail().isLength({ min: 1, max: 200 }),
+  handleValidation,
+];
+
+export const apiKeyRules = [
+  stripUnknown(["scopes"]),
+  body("scopes").isArray({ min: 1 }).withMessage("scopes must be a list with at least one scope"),
+  body("scopes.*").isIn(API_SCOPES).withMessage(`scopes must be from: ${API_SCOPES.join(", ")}`),
+  handleValidation,
+];
+
+export const reviewRules = [
+  stripUnknown(["kind", "decision"]),
+  body("kind").isIn(REVIEW_KINDS).withMessage(`kind must be one of: ${REVIEW_KINDS.join(", ")}`),
+  body("decision").isIn(["approve", "reject"]).withMessage("decision must be approve or reject"),
   handleValidation,
 ];
 

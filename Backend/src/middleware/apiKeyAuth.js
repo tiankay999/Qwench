@@ -46,6 +46,9 @@ export function apiKeyAuth(requiredScope) {
       return sendError(res, 403, "insufficient_scope", "Insufficient scope for this endpoint");
     }
 
+    // Never awaited: recording this must not hold up the request.
+    ApiKey.updateOne({ _id: apiKey._id }, { lastUsedAt: new Date() }).catch(() => {});
+
     req.org = apiKey.orgId;
     req.apiKeyId = String(apiKey._id);
     req.apiKeyScopes = apiKey.scopes || [];

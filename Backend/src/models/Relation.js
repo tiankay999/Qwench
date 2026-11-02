@@ -18,6 +18,7 @@ const relationSchema = new mongoose.Schema(
     reviewedBy: { type: String, trim: true },
     reviewedAt: { type: Date },
     notes: { type: String, trim: true },
+    isDemo: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

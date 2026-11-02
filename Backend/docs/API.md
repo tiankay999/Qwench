@@ -177,4 +177,101 @@ curl http://localhost:4000/v1/public/about
 
 ## Institution API
 
-Phase 5 finishes this section. For now, `POST /v1/check` needs an `x-api-key` header, and partner numbers are checked there. The console routes aren't built yet.
+Send your key in the `x-api-key` header. A missing or revoked key gets 401, and a key without the scope gets 403. Keys are limited per minute, per key.
+
+### POST /v1/check
+
+Scope: `check`.
+
+```bash
+curl -X POST http://localhost:4000/v1/check \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $QWENCH_API_KEY" \
+  -d '{"recipient": "+233240000000", "type": "momo_number", "amount_ghs": 800, "new_payee": true}'
+```
+
+```json
+{
+  "match": true,
+  "entity": "Example Scheme",
+  "state": "named_in_notice",
+  "tier": 1,
+  "reason_codes": ["REGULATOR_NOTICE"],
+  "sources": [{ "publisher": "", "date": "", "url": "", "quote": "" }],
+  "foreign_context": [],
+  "allowed_use": "customer_warning",
+  "suggested_action": "warn",
+  "report": {},
+  "is_demo": false,
+  "checked_at": ""
+}
+```
+
+A match also has `entity_slug`, `entity_kind`, `relations`, `merchant_claim` and `signal`. An unknown recipient returns `match: false`, `state: "no_record"` and `suggested_action: "none"`.
+
+| Field | Values |
+|---|---|
+| `allowed_use` | `customer_warning`, `internal_review`, `watch` or `null` |
+| `suggested_action` | `warn_or_confirmation_call` (tier 1, new payee, at or above your limit), `warn`, `internal_review`, `watch`, `none` |
+
+### GET /v1/feed
+
+Scope: `feed`. New, changed and removed reviewed records, oldest change first.
+
+```bash
+curl "http://localhost:4000/v1/feed?since=2026-11-01T00:00:00Z&limit=500" -H "x-api-key: $QWENCH_API_KEY"
+```
+
+```json
+{
+  "count": 1,
+  "records": [{
+    "change": "added",
+    "entity": "Example Scheme",
+    "entity_slug": "example-scheme",
+    "state": "named_in_notice",
+    "record_type": "warning",
+    "jurisdiction": "GH",
+    "source": { "publisher": "", "title": "", "date": "", "url": "" },
+    "quote": "",
+    "identifiers": [{ "type": "domain", "value": "example.com" }],
+    "updated_at": "",
+    "is_demo": false
+  }],
+  "next_cursor": null
+}
+```
+
+- `change` is `added`, `updated` or `removed`. A removed record has no quote or identifiers.
+- When `next_cursor` isn't null, pass it back as `cursor` for the next page. In CSV it's in the `X-Next-Cursor` header.
+- Add `format=csv` for a spreadsheet.
+- Identifiers are only those published in a notice. Partner numbers are never in the feed, in any form. Check them through `POST /v1/check`.
+
+## Console API
+
+For the console's own screens. It uses a login session, so no API key ever sits in the browser. The session is an httpOnly cookie set by `/login`, so send requests with credentials included (`credentials: "include"` in `fetch`). It lasts 8 hours. Add the console's address to `ALLOWED_ORIGINS`.
+
+There's no sign-up. Create users with `pnpm user:create`, or `pnpm seed:demo` on a demo database.
+
+| Route | Who | Purpose |
+|---|---|---|
+| `POST /v1/console/login` | Anyone | `{ "email", "password" }`, returns `{ "user": { "email", "role", "organization", "is_demo" } }` |
+| `POST /v1/console/logout` | Anyone | Ends the session |
+| `GET /v1/console/me` | Signed in | The current user, or 401 |
+| `POST /v1/console/lookup` | Signed in | `{ "recipient", "type" }`. Same reply as `/v1/check`, plus `member_report_count`: how many independent members reported it, never who |
+| `POST /v1/console/payment-check` | Signed in | Same request and reply as `/v1/check`, using the user's organisation |
+| `GET /v1/console/feed` | Signed in | Same as `/v1/feed` |
+| `GET /v1/console/api-keys` | `org_admin` | Their organisation's keys, without the keys themselves |
+| `POST /v1/console/api-keys` | `org_admin` | `{ "scopes": ["check", "feed"] }`. The reply has the full `key`, shown only this once |
+| `DELETE /v1/console/api-keys/:id` | `org_admin` | Revokes it at once |
+| `GET /v1/console/review-queue` | Qwench reviewers | `{ "count", "items": [...] }`. Each item has `id`, `kind`, `title`, `can_review` and details for its kind |
+| `POST /v1/console/review-queue/:id` | Qwench reviewers | `{ "kind", "decision": "approve" or "reject" }` |
+
+Queue `kind` is `record`, `relation`, `public_report`, `contribution` or `signal`. Refusals you should show:
+
+| Code | Meaning |
+|---|---|
+| `self_approval` | A different person has to review this (403). `can_review` is false on these items |
+| `needs_quote` | The record has no quote from its source, so it can't go live |
+| `already_reviewed` | Someone else got there first |
+| `review_refused` | The item doesn't meet the rules to go live |

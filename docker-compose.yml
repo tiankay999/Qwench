@@ -1,0 +1,128 @@
+services:
+  mongo:
+    image: mongo:7-jammy
+    container_name: qwench-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: qwench
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - qwench-network
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  backend:
+    build:
+      context: ./Backend
+      dockerfile: Dockerfile
+    container_name: qwench-backend
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-4000}:4000"
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - qwench-network
+    environment:
+      NODE_ENV: production
+      API_PORT: 4000
+      MONGODB_URI: mongodb://mongo:27017/qwench
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      PHONE_HASH_SALT: ${PHONE_HASH_SALT}
+      HMAC_SECRET_KEY: ${HMAC_SECRET_KEY}
+      JWT_SECRET: ${JWT_SECRET}
+      CHANNEL_API_KEY: ${CHANNEL_API_KEY}
+      PUBLIC_DAILY_LIMIT: ${PUBLIC_DAILY_LIMIT:-20}
+      COLLECTORS_ENABLED: ${COLLECTORS_ENABLED:-false}
+      COLLECT_EVERY_HOURS: ${COLLECT_EVERY_HOURS:-1}
+      GH_WHOIS_LOOKUP: ${GH_WHOIS_LOOKUP:-true}
+      GH_WHOIS_MAX_PER_HOUR: ${GH_WHOIS_MAX_PER_HOUR:-30}
+      ALLOW_DEMO_SEED: ${ALLOW_DEMO_SEED:-false}
+      AI_PROVIDER: ${AI_PROVIDER:-gemini}
+      AI_MODEL: ${AI_MODEL:-gemini-3.5-flash-lite}
+      AI_VISION_MODEL: ${AI_VISION_MODEL:-}
+      AI_TIMEOUT_MS: ${AI_TIMEOUT_MS:-25000}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+
+  webapp:
+    build:
+      context: ./WebAPP/qwench
+      dockerfile: Dockerfile
+    container_name: qwench-webapp
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - qwench-network
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      QWENCH_API_URL: http://backend:4000
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+
+  whatsapp-bot:
+    build:
+      context: ./WhatsappBot
+      dockerfile: Dockerfile
+    container_name: qwench-whatsapp-bot
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - qwench-network
+    volumes:
+      - whatsapp_auth:/app/auth
+    stdin_open: true
+    tty: true
+    environment:
+      NODE_ENV: production
+      API_BASE_URL: http://backend:4000
+      API_TIMEOUT_MS: ${API_TIMEOUT_MS:-20000}
+      WEB_APP_URL: ${WEB_APP_URL:-http://localhost:3000}
+      AUTH_DIR: /app/auth
+      QR_SMALL: ${QR_SMALL:-true}
+      ALLOW_GROUPS: ${ALLOW_GROUPS:-false}
+      BAILEYS_LOG_LEVEL: ${BAILEYS_LOG_LEVEL:-silent}
+      CHANNEL_API_KEY: ${CHANNEL_API_KEY}
+
+  telegram-bot:
+    build:
+      context: ./TelegramBot
+      dockerfile: Dockerfile
+    container_name: qwench-telegram-bot
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - qwench-network
+    environment:
+      NODE_ENV: production
+      API_BASE_URL: http://backend:4000
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      CHANNEL_API_KEY: ${CHANNEL_API_KEY}
+
+networks:
+  qwench-network:
+    driver: bridge
+
+volumes:
+  mongo_data:
+    driver: local
+  whatsapp_auth:
+    driver: local
+

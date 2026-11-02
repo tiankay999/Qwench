@@ -58,11 +58,30 @@ console.log("");
 console.log("  🛡️  Qwench WhatsApp bot starting...");
 console.log("");
 
-// Handle Baileys/libsignal decryption hiccups gracefully rather than dumping a raw stack trace
+// Handle Baileys/libsignal decryption hiccups gracefully and auto-heal corrupted/stale session files
 process.on("unhandledRejection", (err) => {
   const msg = err?.message || String(err);
-  if (msg.includes("Bad MAC") || msg.includes("Failed to decrypt")) {
-    console.warn("[wa] ⚠️  Decryption mismatch on incoming message (Bad MAC). Session will resync automatically.");
+  const isDecryptionIssue =
+    msg.includes("Bad MAC") ||
+    msg.includes("Failed to decrypt") ||
+    msg.includes("Over 2000 messages into the future");
+
+  if (isDecryptionIssue) {
+    // If a specific session ID is in the stack trace, prune its outdated file so Baileys re-keys
+    const stack = err?.stack || "";
+    const sessionMatch = stack.match(/(\d+\.\d+) \[as awaitable\]/);
+    if (sessionMatch) {
+      const sessionId = sessionMatch[1];
+      const sessionFile = join(AUTH_DIR, `session-${sessionId}.json`);
+      try {
+        if (existsSync(sessionFile)) {
+          unlinkSync(sessionFile);
+          console.warn(`[wa] 🔄 Cleared desynced session ${sessionId}. Next message will renegotiate keys.`);
+          return;
+        }
+      } catch {}
+    }
+    console.warn("[wa] ⚠️  Decryption mismatch on incoming message. Session will resync automatically.");
     return;
   }
   console.error("[bot] unhandled rejection:", err);

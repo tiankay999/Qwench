@@ -73,7 +73,7 @@ Its core product is **Know Your Payee**. Before a payment goes through, a bank o
 | Level | Source | What it allows |
 |---|---|---|
 | **1** | Regulators and sanctions lists | Customer warnings |
-| **2** | Fraud confirmed by partners, and reviewed impersonation | Internal review, or warnings where partners agree |
+| **2** | Fraud confirmed by partners, and reviewed impersonation | Partner-confirmed: internal review, or warnings where partners agree. Reviewed impersonation: shown publicly |
 | **3** | Independent reports with evidence | Internal review |
 | **4** | A rise in checks | Watch only |
 | **Not shown** | A single public report | Opens a review only |

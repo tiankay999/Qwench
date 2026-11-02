@@ -31,7 +31,7 @@ Stay in your own area. If you need something from another owner, list it for the
 2. Qwench's own wording never says "safe", "scam", "verified" or "fraudulent". Exact
    regulator quotes are allowed. So is this one sentence: "This does not mean it is safe or unsafe."
 3. Qwench never blocks a payment, holds money or contacts a suspect.
-4. Only regulator records, sanctions lists and agreed partner confirmations can produce a customer warning.
+4. Only regulator records, sanctions lists, reviewed impersonation and agreed partner confirmations can produce a customer warning.
 5. A public report can never change a public result. It only opens a review.
 6. Nobody can pay for a different result.
 7. Store what was checked, not who checked it. No raw queries, message text or phone numbers in the database or logs.
@@ -61,6 +61,7 @@ Stay in your own area. If you need something from another owner, list it for the
 - **Readable numbers:** only a number published in a notice stays readable. Every other MoMo or bank number, and all partner data, is a hash only.
 - **Record statuses:** `pending`, `active`, `expired`, `withdrawn`.
 - **Code layout:** existing files in `src/routes/` and `src/services/` stay where they are.
+- **Reviewed impersonation is public:** Dre decided this on 2 November 2026. It shows as tier 2, naming the business, once a second person has reviewed it. Partner data, reports and signals stay out of public replies.
 - **Evidence engine:** `src/services/evidenceEngine.js` is the only engine. `checkService.js` is deprecated.
 
 ## Code already on `main`

@@ -41,6 +41,7 @@ checked without a key, so list that as not done. Everything must work with no AI
 | 1 Data model | Done | `4158cef` |
 | Merge of `main` with the evidence engine | Done | `2d8286c` |
 | 2 Data import | Done | `81efb43` |
+| Public reviewed impersonation | Done | `8b7a676` |
 | 3 Evidence engine | Done | `8cef2b8` |
 | 4 onwards | Not started | |
 
@@ -54,8 +55,8 @@ Known bugs from the review that are still open, by phase:
    Exact regulator quotes are allowed. So is this one sentence:
    "This does not mean it is safe or unsafe."
 3. Qwench never blocks a payment, holds money or contacts a suspect.
-4. Only regulator records, sanctions lists and agreed partner confirmations can
-   produce a customer warning.
+4. Only regulator records, sanctions lists, reviewed impersonation and agreed partner
+   confirmations can produce a customer warning.
 5. A public report can never change a public result. It only opens a review.
 6. Nobody can pay for a different result.
 7. Store what was checked, not who checked it. No raw queries, message text or
@@ -105,7 +106,7 @@ Create these models. Add indexes on anything used for lookup.
 | `Entity` | name, slug, aliases, kind (platform, company, token, app, merchant, authority), country, allowFuzzy, isDemo | Replaces `Investment` in `/v1` |
 | `Identifier` | entityId, type (name, domain, momo_number, bank_account, wallet, social_handle, telegram_link, tiktok_handle, merchant_id), raw, normalized, valueHash, origin (notice, partner, merchant, review, legacy), isDemo | Partner origin: `raw` and `normalized` stay empty. MoMo and bank numbers keep no readable form unless the origin is `notice`, because a notice is already public and the feed publishes it |
 | `Record` | entityId, sourceId, type (warning, licence, sandbox, registration, foreign_alert, sanction), jurisdiction, licenseType, quote, effectiveOn, endsOn, status (pending, active, expired, withdrawn), capturedBy, reviewedBy, reviewedAt, isDemo | Validation rejects `active` without a source, a quote, or with reviewer equal to capturer |
-| `Relation` | fromEntity, toEntity, type (impersonates, claims_affiliation, renamed_from, same_operator), sourceId, status | Real companies appear only as impersonated |
+| `Relation` | fromEntity, toEntity, type (impersonates, claims_affiliation, renamed_from, same_operator), sourceId, status (pending, active, disputed, resolved), capturedBy, reviewedBy, reviewedAt | An active impersonation needs a capturer and a different reviewer, because it is shown publicly. Real companies appear only as impersonated |
 | `Organization` | name, type (bank, momo, psp, vasp, merchant, regulator, qwench), status, confirmationCallLimitGhs, warnsOnPartnerData, isDemo | |
 | `User` | orgId, email, passwordHash, role (analyst, org_admin, reviewer, regulator) | bcrypt; no public sign-up |
 | `ApiKey` | orgId, keyHash, prefix, scopes, rateLimit, revokedAt, lastUsedAt | Keyed HMAC-SHA256 hash only, using `HMAC_SECRET_KEY`; show the full key once |
@@ -177,7 +178,7 @@ If `src/data/reviewed/` is empty, use test fixtures for tests and tell Dre that 
 | Tier | Basis | Reason code | `allowed_use` |
 |---|---|---|---|
 | 1 | Ghana regulator notice or sanctions list | `REGULATOR_NOTICE`, `SANCTIONS_LIST` | `customer_warning` |
-| 2 | Partner-confirmed fraud, reviewed impersonation | `PARTNER_CONFIRMED`, `ADVERTISED_AS_BUSINESS_NOT_REGISTERED` | `internal_review`, or `customer_warning` if the organisation has `warnsOnPartnerData` |
+| 2 | Partner-confirmed fraud, reviewed impersonation | `PARTNER_CONFIRMED`, `ADVERTISED_AS_BUSINESS_NOT_REGISTERED` | Partner-confirmed: `internal_review`, or `customer_warning` if the organisation has `warnsOnPartnerData`. Reviewed impersonation: `customer_warning` |
 | 3 | Reports from 3+ independent sources with evidence, reviewed | `CORROBORATED_REPORTS` | `internal_review` |
 | 4 | Reviewed rise in checks | `CHECK_SPIKE` | `watch` |
 | None | Single public report | None | Not shown; opens a review |
@@ -205,11 +206,11 @@ If `src/data/reviewed/` is empty, use test fixtures for tests and tell Dre that 
 Don't import `riskEngine.js`, `coingecko.js` or `goplus.js` into `/v1`.
 
 **How the rules were applied:**
-- Only tier 1 and legal states reach a public result. Tiers 2 to 4 are for institutions, so a public report or partner record can never change a public reply.
+- Only tier 1, legal states and reviewed impersonation reach a public result. Partner data, reports and signals are for institutions, so a public report or partner record can never change a public reply.
 - A close name is only ever `did_you_mean`, with the entity name and no status or score. This includes dressed-up versions of notice names, such as "Menzg0ld Premium".
 - A regulator (`kind: authority`) answers `authority` from its entry, even before its record is reviewed, because that is not a claim against anyone.
 - A verified merchant's own number returns `registered`, with `merchant_claim`.
-- A number advertised under a registered business opens an impersonation `Case`. Results change only once a person records an `impersonates` relation.
+- A number advertised under a registered business opens an impersonation `Case`. Results change only once a second person reviews an `impersonates` relation. It then shows publicly, naming the business.
 - `return_check` is `{ stated, annual_percent, note }`.
 
 **Tests:**

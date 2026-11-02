@@ -62,7 +62,7 @@ This is roughly **50–70 engineering hours**, so it probably won't all fit befo
 | **entities** | name, slug, kind (platform, company, token, app, merchant, authority), country, allowFuzzy, isDemo | Replaces `Investment` |
 | **identifiers** | entityId, type (name, domain, momo_number, bank_account, wallet, social_handle, telegram_link, tiktok_handle, merchant_id), raw, normalized, valueHash, allowFuzzy, origin (notice, partner, merchant, review, legacy), isDemo | Numbers in +233 format. Partner data, and any number not published in a notice, stored as keyed hashes only |
 | **records** | entityId, sourceId, type (warning, licence, sandbox, registration, foreign_alert, sanction), jurisdiction, licenseType, quote, effectiveOn, endsOn, status (pending, active, expired, withdrawn), capturedBy, reviewedBy, reviewedAt, isDemo | **Active needs a source, a quote, and a reviewer different from the capturer** |
-| **relations** | fromEntity, toEntity, type (impersonates, claims_affiliation, renamed_from, same_operator), sourceId, status | Real companies appear only as impersonated |
+| **relations** | fromEntity, toEntity, type (impersonates, claims_affiliation, renamed_from, same_operator), sourceId, status, capturedBy, reviewedBy, reviewedAt | An active impersonation needs a second reviewer. Real companies appear only as impersonated |
 | **organizations** | name, type (bank, momo, psp, vasp, merchant, regulator, qwench), status, confirmationCallLimitGhs, warnsOnPartnerData, isDemo | |
 | **users** | orgId, email, passwordHash, role (analyst, org_admin, reviewer, regulator) | Team login only; no public sign-up |
 | **apiKeys** | orgId, keyHash, prefix, scopes, rateLimit, revokedAt, lastUsedAt | Store a keyed hash only |
@@ -97,7 +97,7 @@ Replace the scoring in `riskEngine.js` with this flow:
 | Tier | Basis | Reason code | Allowed use |
 |---|---|---|---|
 | **1** | Regulator notice or sanctions list | `REGULATOR_NOTICE`, `SANCTIONS_LIST` | Customer warning |
-| **2** | Partner-confirmed fraud, or a reviewed impersonation | `PARTNER_CONFIRMED`, `ADVERTISED_AS_BUSINESS_NOT_REGISTERED` | Internal review, or a warning where partners agree |
+| **2** | Partner-confirmed fraud, or a reviewed impersonation | `PARTNER_CONFIRMED`, `ADVERTISED_AS_BUSINESS_NOT_REGISTERED` | Partner-confirmed: internal review, or a warning where partners agree. Reviewed impersonation: shown publicly |
 | **3** | Independent reports with evidence | `CORROBORATED_REPORTS` | Internal review |
 | **4** | Rising checks only | `CHECK_SPIKE` | Watch |
 | **None** | A single public report | None | Not shown; opens a review |

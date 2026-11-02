@@ -4,7 +4,7 @@ import { EXACT_MATCH_ONLY, hashIdentifier, normalizeDomain, normalizeIdentifier,
 import { Merchant, PublicReport } from "../models/index.js";
 import { extractFromImage, extractFromUrl } from "./aiExtractor.js";
 import { domainAge as lookUpDomainAge } from "./domainAge.js";
-import { evaluate, reviewedEntities } from "./evidenceEngine.js";
+import { evaluate, reviewedEntities, fullNameOf } from "./evidenceEngine.js";
 import { findLookalikesInText, findNamesInText } from "./nameVerifier.js";
 import { frozenFor } from "./pageSeen.js";
 import { scrapeUrl } from "./urlAnalyzer.js";
@@ -174,7 +174,9 @@ export async function checkMessage(input, deps = {}) {
   const merchants = await Merchant.find({ status: "verified" }).select("legalName").lean();
   const advertisedAs = findNamesInText(readText, merchants.map((m) => ({ name: m.legalName })))[0];
   const skip = (word) => EXACT_MATCH_ONLY.has(normalizeName(word));
-  const suggestedName = findLookalikesInText(readText, await reviewedEntities({ fuzzyOnly: true }), { skip })[0] || null;
+  // A message of just a name or two might be a short form of a full one.
+  const shortForm = /^\S+(?:\s\S+)?$/.test(text.trim()) ? await fullNameOf(text.trim()) : null;
+  const suggestedName = findLookalikesInText(readText, await reviewedEntities({ fuzzyOnly: true }), { skip })[0] || shortForm;
 
   // Where a link really lands, so a short link can't hide a listed site.
   const landedOn = pages.map((p) => (p.finalUrl ? normalizeDomain(p.finalUrl) : "")).filter((d) => d && !found.domains.includes(d));
@@ -184,6 +186,7 @@ export async function checkMessage(input, deps = {}) {
     ...landedOn.map((value) => ({ type: "domain", value })),
     ...found.numbers.map((value) => ({ type: "momo_number", value, advertised: advertisedAs })),
     ...found.wallets.map((value) => ({ type: "wallet", value })),
+    ...ruleResults.accounts.map((value) => ({ type: "bank_account", value })),
     ...found.domains.map((value) => ({ type: "domain", value })),
     ...fromMessage.manual_review.map(socialCandidate),
     ...fromMessage.app_ids.map((value) => ({ type: "app_id", value })),

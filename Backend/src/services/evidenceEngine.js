@@ -51,6 +51,8 @@ export function extractIdentifiers(recipient, type) {
 
 // A notice outranks a licence, which outranks sandbox, and so on. Used only to
 // break a tie between entities claiming the same identifier.
+const MIN_SHORT_NAME = 4;
+
 const RECORD_WEIGHT = { warning: 5, sanction: 5, foreign_alert: 4, licence: 3, sandbox: 2, registration: 1 };
 
 async function rankByRecordWeight(candidates) {
@@ -112,6 +114,19 @@ async function closeDomain(domain, now) {
 const VERIFIER_STATUS = { warning: "blacklisted", sanction: "blacklisted", licence: "licensed", sandbox: "sandbox", registration: "licensed" };
 
 /**
+ * The one reviewed name that starts with what was typed, such as "mekanism" for
+ * "MEKANISM MARKETING LTD". Regulators use full names and people don't. It's only
+ * ever a suggestion, and if several names fit, none is offered.
+ */
+export async function fullNameOf(query, now = new Date()) {
+  const typed = normalizeName(query);
+  if (typed.length < MIN_SHORT_NAME || EXACT_MATCH_ONLY.has(typed)) return null;
+
+  const fits = (await reviewedEntities({ now })).filter((e) => normalizeName(e.name).startsWith(`${typed} `));
+  return fits.length === 1 ? fits[0].name : null;
+}
+
+/**
  * A reviewed entity whose name is close to the query, or null.
  *
  * Only entities with allowFuzzy and a live record are considered, so nothing
@@ -119,6 +134,9 @@ const VERIFIER_STATUS = { warning: "blacklisted", sanction: "blacklisted", licen
  */
 async function closeName(query, now) {
   if (EXACT_MATCH_ONLY.has(normalizeName(query))) return null;
+
+  const shortened = await fullNameOf(query, now);
+  if (shortened) return shortened;
 
   const named = await reviewedEntities({ now, fuzzyOnly: true });
   if (!named.length) return null;

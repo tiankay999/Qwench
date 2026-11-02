@@ -373,6 +373,53 @@ test("an AI provider that throws doesn't fail the check", async () => {
   assert.equal(link.result.state, "named_in_notice");
 });
 
+async function collectedRecord(name, slug, identifiers = []) {
+  const entity = await Entity.create({ name, slug, kind: "platform", allowFuzzy: false });
+  await Identifier.create({ entityId: entity._id, ...buildIdentifier("name", name, { allowFuzzy: false }), origin: "notice" });
+  for (const [type, value] of identifiers) await Identifier.create({ entityId: entity._id, ...buildIdentifier(type, value), origin: "notice" });
+  await Record.create({ entityId: entity._id, sourceId: source._id, type: "warning", quote: "Fixture", capturedBy: "a", reviewedBy: "b", status: "active" });
+}
+
+test("a short form of a name is offered as a question, and never shown as a match", async () => {
+  await collectedRecord("Shortname Exchange", "shortname-exchange");
+  const { result } = await checkMessage({ text: "shortname" }, { scrape: page(""), readPage: noAi });
+  assert.equal(result.state, "no_record");
+  assert.equal(result.did_you_mean.suggested_entity, "Shortname Exchange");
+});
+
+test("a short form that fits several names offers none", async () => {
+  await collectedRecord("Shared Exchange", "shared-exchange");
+  await collectedRecord("Shared Capital", "shared-capital");
+  const { result } = await checkMessage({ text: "shared" }, { scrape: page(""), readPage: noAi });
+  assert.ok(!result.did_you_mean);
+});
+
+test("a short form inside a longer message offers nothing", async () => {
+  await collectedRecord("Shortname Exchange", "shortname-exchange");
+  const { result } = await checkMessage({ text: "I told my friend about shortname today" }, { scrape: page(""), readPage: noAi });
+  assert.ok(!result.did_you_mean);
+});
+
+test("a labelled bank account in a message is checked", async () => {
+  await collectedRecord("Account Scheme", "account-scheme", [["bank_account", "1234567890123"]]);
+  for (const text of ["Pay into account number 1234567890123", "A/C: 1234 5678 90123", "acct no. 1234567890123"]) {
+    const { result } = await checkMessage({ text }, { scrape: page(""), readPage: noAi });
+    assert.equal(result.state, "named_in_notice", text);
+  }
+});
+
+test("a phone number after the word account isn't read as a bank account", async () => {
+  const { result } = await checkMessage({ text: "My MoMo account 0240000080" }, { scrape: page(""), readPage: noAi });
+  assert.equal(result.state, "named_in_notice");
+  assert.equal(result.entity, "Fixture Scheme");
+});
+
+test("an unlabelled long number isn't treated as a bank account", async () => {
+  await collectedRecord("Account Scheme", "account-scheme", [["bank_account", "1234567890123"]]);
+  const { result } = await checkMessage({ text: "Reference 1234567890123" }, { scrape: page(""), readPage: noAi });
+  assert.equal(result.state, "no_record");
+});
+
 test("the lookups are logged as hashes", async () => {
   const { identifierHashes, inputType } = await checkMessage({ text: "Pay 0240000080 at fixture.com" }, { scrape: page(""), readPage: noAi });
   assert.equal(identifierHashes.length, 2);

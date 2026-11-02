@@ -8,6 +8,8 @@ import { normalizeAppId, normalizeDomain, normalizePhone, normalizeWallet } from
  * literally appear in the message.
  */
 
+// Only digits labelled as an account: a bare long number could be anything.
+const ACCOUNT = /\b(?:account|acct|a\/c)\b(?:\s*(?:number|num|no\.?|#))?\s*[:\-]?\s*(?:is\s+)?(\d[\d\s-]{6,20}\d)/gi;
 const PHONE = /(?<![\d+])(?:\+?233|0)[\s-]?\d{2}[\s-]?\d{3}[\s-]?\d{4}(?!\d)/g;
 const WALLET = /\b0x[a-fA-F0-9]{40}\b/g;
 const URL = /\b(?:https?:\/\/|www\.)[^\s<>"')]+/gi;
@@ -56,6 +58,7 @@ export function extract(text) {
     links: unique(links),
     numbers: unique((input.match(PHONE) || []).map(normalizePhone).filter((n) => /^\+233\d{9}$/.test(n))),
     wallets: unique((input.match(WALLET) || []).map(normalizeWallet)),
+    accounts: unique([...input.matchAll(ACCOUNT)].map((m) => m[1]).filter((n) => !n.match(PHONE)).map((n) => n.replace(/\D/g, ""))),
     manual_review: unique(manualReview),
     app_ids: unique(apps),
   };

@@ -1,5 +1,6 @@
 import * as cheerio from "cheerio";
 
+import { cleanText } from "../engine/extract.js";
 import { safeFetch } from "../lib/safeFetch.js";
 
 import { runJsonPrompt } from "./aiAnalyzer.js";
@@ -43,6 +44,8 @@ Return JSON ONLY:
   "summary": "one sentence about what this site is"
 }`;
 
+const HIDDEN_STYLE = /display\s*:\s*none|visibility\s*:\s*hidden|font-size\s*:\s*0(?![.\d])|opacity\s*:\s*0(?![.\d])|(?:left|top|text-indent)\s*:\s*-\d{3,}|color\s*:\s*#fff(?:fff)?\s*;\s*background(?:-color)?\s*:\s*#fff(?:fff)?/i;
+
 const TIMEOUT = 10000;
 const MAX_BODY = 3000;
 
@@ -53,13 +56,23 @@ export async function scrapeUrl(url, fetchOptions = {}) {
     const finalUrl = new URL(response.finalUrl);
 
     const $ = cheerio.load(String(response.body || ""));
-    $("script, style, noscript").remove();
+    $("script, style, noscript, template").remove();
+
+    // Text a person can't see can still reach an AI or the rules, so it's taken out.
+    // Its contents are kept only to check whether it's aimed at AI. Only inline styles
+    // can be read here: a page can still hide text with its own style sheet.
+    const hidden = $("[hidden], [aria-hidden='true'], input[type='hidden']").add(
+      $("[style]").filter((_, el) => HIDDEN_STYLE.test($(el).attr("style") || ""))
+    );
+    const hiddenText = cleanText(hidden.text()).replace(/\s+/g, " ").trim().slice(0, MAX_BODY);
+    hidden.remove();
 
     const page = {
       error: false,
       title: $("title").first().text().trim().slice(0, 300),
       metaDescription: ($('meta[name="description"]').attr("content") || "").trim().slice(0, 500),
-      bodyText: $("body").text().replace(/\s+/g, " ").trim().slice(0, MAX_BODY),
+      bodyText: cleanText($("body").text()).replace(/\s+/g, " ").trim().slice(0, MAX_BODY),
+      hiddenText,
       links: $("a")
         .map((_, el) => $(el).attr("href"))
         .get()

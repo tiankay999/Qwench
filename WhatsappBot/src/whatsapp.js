@@ -26,6 +26,38 @@ const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
 const logger = pino({ level: process.env.BAILEYS_LOG_LEVEL || "silent" });
 
 let reconnectAttempts = 0;
+/**
+ * Only one socket may be live at a time.
+ *
+ * A reconnect used to call startWhatsApp() from inside the old socket's own
+ * connection.update handler without ending that socket or dropping its
+ * listeners. Two sockets then shared one auth directory, and the boot purge in
+ * the newer one deleted the keys the older one was still pairing with. The
+ * generation counter makes a stale socket's events no-ops, and the old socket
+ * is ended before a new one is built.
+ */
+let activeSock = null;
+let generation = 0;
+
+function endSocket(sock) {
+  if (!sock) return;
+  try {
+    // creds.update is deliberately left attached: a save queued just before a
+    // successful pair must still land on disk, and the handler only writes.
+    sock.ev.removeAllListeners("connection.update");
+    sock.ev.removeAllListeners("messages.upsert");
+  } catch {
+    // the emitter may already be torn down
+  }
+  try {
+    sock.end(undefined);
+  } catch {
+    // already closed
+  }
+}
+
+/** Shows enough of the number to spot a wrong one, without printing it whole. */
+const maskNumber = (digits) => (digits.length < 6 ? "(too short)" : `${digits.slice(0, 5)}…${digits.slice(-2)} (${digits.length} digits)`);
 // Track outbound message IDs sent by the bot so it never responds to its own replies
 const sentMessageIds = new Set();
 // Cache recent messages so Baileys can satisfy WhatsApp retry requests (prevents decryption failures)
@@ -60,6 +92,10 @@ export function clearAuthDir() {
 }
 
 export async function startWhatsApp() {
+  const myGeneration = ++generation;
+  endSocket(activeSock);
+  activeSock = null;
+
   if (process.env.RESET_AUTH === "true" || process.env.FORCE_RESET_AUTH === "true") {
     console.log(`[wa] RESET_AUTH requested -- clearing ${AUTH_DIR}...`);
     clearAuthDir();
@@ -94,6 +130,13 @@ export async function startWhatsApp() {
     // Keep the phone's notifications intact while we are testing.
     markOnlineOnConnect: false,
     browser: ["Ubuntu", "Chrome", "20.0.04"],
+    /* Baileys gets a fixed pool of pairing refs and rotates them: the first
+       lives 60s, each later one 20s. The pool is exhausted in about two
+       minutes, and the socket then closes with `timedOut` — which silently
+       kills the code already printed in the logs. Reading a code out of a
+       Coolify log pane and typing it on a phone takes longer than that. A long
+       first ref keeps one pairing session alive while the code is being used. */
+    ...(PAIRING_NUMBER ? { qrTimeout: 10 * 60 * 1000 } : {}),
     generateHighQualityLinkPreview: false,
     syncFullHistory: false,
     getMessage: async (key) => {
@@ -101,37 +144,56 @@ export async function startWhatsApp() {
     },
   });
 
+  activeSock = sock;
   sock.ev.on("creds.update", saveCreds);
 
-  // Link using an 8-digit pairing code instead of scanning QR if PAIRING_NUMBER is set
-  if (PAIRING_NUMBER && !sock.authState.creds.registered) {
-    setTimeout(async () => {
-      try {
-        const rawCode = await sock.requestPairingCode(PAIRING_NUMBER);
-        const formatted = rawCode?.match(/.{1,4}/g)?.join("-") || rawCode;
-        console.log("");
-        console.log("===========================================================");
-        console.log(`  📱  WHATSAPP 8-DIGIT PAIRING CODE`);
-        console.log(`      Your code:  ${formatted}  (or: ${rawCode})`);
-        console.log("===========================================================");
-        console.log("  To link your phone:");
-        console.log("  1. Open WhatsApp on your phone");
-        console.log("  2. Settings (or ⋮) > Linked devices > Link a device");
-        console.log("  3. Tap 'Link with phone number instead' at the bottom");
-        console.log(`  4. Enter this code: ${rawCode}`);
-        console.log("===========================================================");
-        console.log("  ⚠️  NOTE: You have ~60 seconds to enter this code on your");
-        console.log("     phone before WhatsApp expires it!");
-        console.log("===========================================================");
-        console.log("");
-      } catch (err) {
-        console.error("[wa] failed to request pairing code:", err.message);
-      }
-    }, 3000);
+  /* Link with an 8-digit code instead of a QR when PAIRING_NUMBER is set.
+     The code is requested on the first `qr` event, not on a timer. That event
+     is Baileys telling us the server answered `pair-device`, so the pairing
+     session is provably live; the old 3-second timer fired whether or not the
+     socket had got that far. */
+  const pairingWanted = Boolean(PAIRING_NUMBER) && !sock.authState.creds.registered;
+  let pairingRequested = false;
+
+  async function issuePairingCode() {
+    if (pairingRequested || myGeneration !== generation) return;
+    pairingRequested = true;
+    try {
+      const rawCode = await sock.requestPairingCode(PAIRING_NUMBER);
+      const formatted = rawCode?.match(/.{1,4}/g)?.join("-") || rawCode;
+      console.log("");
+      console.log("===========================================================");
+      console.log("  📱  WHATSAPP 8-DIGIT PAIRING CODE");
+      console.log(`      Your code:  ${formatted}  (or: ${rawCode})`);
+      console.log("===========================================================");
+      console.log(`  Issued for: +${maskNumber(PAIRING_NUMBER)}`);
+      console.log("  This must be the SAME number you are linking on the phone.");
+      console.log("  It needs the country code and no leading zero —");
+      console.log("  e.g. 233501234567, never 0501234567.");
+      console.log("===========================================================");
+      console.log("  1. Open WhatsApp on that phone");
+      console.log("  2. Settings (or ⋮) > Linked devices > Link a device");
+      console.log("  3. Tap 'Link with phone number instead' at the bottom");
+      console.log(`  4. Enter: ${rawCode}`);
+      console.log("===========================================================");
+      console.log("  The session is held open for 10 minutes. If the code is");
+      console.log("  refused, wait for the next one rather than retyping this.");
+      console.log("===========================================================");
+      console.log("");
+    } catch (err) {
+      pairingRequested = false;
+      console.error("[wa] failed to request pairing code:", err.message);
+    }
   }
 
   sock.ev.on("connection.update", (update) => {
+    // A socket replaced by a reconnect must not act on its own death throes.
+    if (myGeneration !== generation) return;
+
     const { connection, lastDisconnect, qr } = update;
+
+    // The server is ready to pair: ask for the code now.
+    if (qr && pairingWanted) issuePairingCode();
 
     if (qr && !PAIRING_NUMBER) {
       console.log("");
@@ -164,10 +226,28 @@ export async function startWhatsApp() {
       const reason = Object.keys(DisconnectReason).find((k) => DisconnectReason[k] === statusCode) || statusCode;
       console.log(`[wa] connection closed (${reason})`);
 
-      if (statusCode === DisconnectReason.loggedOut) {
+      /* A pairing attempt that ran out of refs closes as `timedOut`, not
+         `loggedOut`. That used to fall through to the backoff below, which
+         rebuilt the socket, hit the boot purge, and issued a different code —
+         so the one on screen stopped working with nothing in the log to say
+         so. Both endings are now the same ending, and both say it plainly. */
+      /* 515 is NOT a failure: WhatsApp asks for a reconnect immediately after
+         a pairing succeeds. Clearing the auth directory here would throw away
+         the credentials at the exact moment they were earned. Reconnect at
+         once and keep them. */
+      if (statusCode === DisconnectReason.restartRequired) {
+        console.log("[wa] 🔗 pairing accepted — reconnecting with the new credentials...");
+        setTimeout(() => startWhatsApp().catch((err) => console.error("[wa] restart failed:", err)), 1000);
+        return;
+      }
+
+      const pairingDied = pairingWanted && statusCode === DisconnectReason.timedOut;
+
+      if (statusCode === DisconnectReason.loggedOut || pairingDied) {
         console.log("");
-        console.log("[wa] ❌ Pairing code expired or device was unlinked.");
-        console.log(`[wa] 🔄 Purging stale session files in ${AUTH_DIR} so a fresh code is generated immediately...`);
+        console.log("[wa] ❌ That pairing code is now dead — the session behind it closed.");
+        console.log("[wa]    Any code still on your screen will be refused. Wait for the next one.");
+        console.log(`[wa] 🔄 Clearing ${AUTH_DIR} and restarting for a fresh code...`);
         console.log("");
         clearAuthDir();
         // Allow logs to flush and give Docker 2s before restarting cleanly

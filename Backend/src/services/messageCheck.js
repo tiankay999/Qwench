@@ -27,18 +27,68 @@ const PAYMENT_TYPES = new Set(["momo_number", "bank_account", "wallet"]);
 const SHORTENERS = new Set(["bit.ly", "tinyurl.com", "cutt.ly", "rb.gy", "is.gd", "shorturl.at", "t.co", "goo.gl", "ow.ly", "wa.me"]);
 // Free endings only. Paid ones such as .xyz are widely used, and prove nothing.
 const WATCHED_ENDINGS = [".tk", ".ml", ".ga", ".cf", ".gq"];
+
+/**
+ * A shortener Qwench has never seen.
+ *
+ * The list above holds the ten everybody knows, and a campaign only has to
+ * register one more to walk past it — the traffic-fine run of late 2026 used
+ * d1.mk, which is on no list anywhere. What it cannot hide is the shape: a
+ * two-label host of a few characters, and a path that is one short run of
+ * random-looking characters and nothing else.
+ *
+ * Deliberately narrow. sec.gov.gh has three labels; a real page's path has
+ * words, slashes or an extension. The cost of a miss is one missing fact; the
+ * cost of a false hit is telling someone a normal link hides where it goes.
+ */
+const SHORT_HOST = /^[a-z0-9-]{1,7}\.[a-z]{2,6}$/i;
+const PATH_SEGMENT = /^\/([A-Za-z0-9_-]{5,12})$/;
+
+/**
+ * A shortener's key is random, so it mixes cases or carries a digit. A short
+ * word does neither, which is what keeps mybank.com/login out of this.
+ */
+function opaqueKey(pathname) {
+  const key = PATH_SEGMENT.exec(pathname)?.[1];
+  if (!key) return false;
+  const mixedCase = /[a-z]/.test(key) && /[A-Z]/.test(key);
+  return mixedCase || /\d/.test(key);
+}
+
+export function looksShortened(link) {
+  try {
+    const url = new URL(/^https?:\/\//i.test(link) ? link : `https://${link}`);
+    const host = url.hostname.toLowerCase().replace(/^www\./, "");
+    if (SHORTENERS.has(host)) return false; // already named, with its own fact
+    return SHORT_HOST.test(host) && opaqueKey(url.pathname) && !url.search;
+  } catch {
+    return false;
+  }
+}
+
+/** Ghana's government addresses. Nothing else may call itself one. */
+const GOV_DOMAIN = /(?:^|\.)gov\.gh$/i;
+const OFFICIAL_CLAIM = /\bofficial\s+(?:traffic\s+)?(?:portal|website|site|page|link|message|notice)\b|\b(?:government|police|customs|court|ministry|dvla|mttd|nrsa)\b/i;
 const NEW_SITE_DAYS = 90;
 const MAX_AGE_LOOKUPS = 3;
 const DAY_MS = 86_400_000;
 
 /** Plain facts about the links, in fixed wording. They change no status or tier. */
-async function linkFacts({ domains, pages, ageOf, pageFrozen }) {
+async function linkFacts({ domains, pages, ageOf, pageFrozen, text = "" }) {
   const facts = [];
   const add = (fact) => {
     if (!facts.includes(fact)) facts.push(fact);
   };
 
   if (domains.some((d) => SHORTENERS.has(d))) add(linkFact("shortener"));
+
+  /* The path is the evidence, and only the fetched pages keep it: read out of
+   * an image, a link often survives as a bare domain. So the raw text is
+   * scanned too — a screenshot is how this family usually arrives. */
+  const writtenLinks = String(text).match(/https?:\/\/[^\s<>"')\]]+/gi) || [];
+  if ([...pages.map((page) => page.link), ...writtenLinks].some((link) => looksShortened(link))) {
+    add(linkFact("shortenerShape"));
+  }
 
   for (const page of pages) {
     const from = normalizeDomain(page.link);
@@ -59,6 +109,14 @@ async function linkFacts({ domains, pages, ageOf, pageFrozen }) {
   }
 
   const landing = [...new Set([...domains.filter((d) => !SHORTENERS.has(d)), ...pages.map((p) => (p.finalUrl ? normalizeDomain(p.finalUrl) : "")).filter(Boolean)])];
+
+  /* The sign says the message claims to be official. This says where the link
+   * actually goes. Neither accuses anyone on its own, and together they are
+   * just two facts side by side — which is the whole point: a real DVLA notice
+   * links to a .gov.gh address, and the reader can see that this one does not. */
+  if (OFFICIAL_CLAIM.test(text) && landing.length > 0 && !landing.some((d) => GOV_DOMAIN.test(d))) {
+    add(linkFact("notGovernment", { domain: landing[0] }));
+  }
 
   for (const domain of landing) {
     const ending = WATCHED_ENDINGS.find((e) => domain.endsWith(e));
@@ -231,7 +289,16 @@ export async function checkMessage(input, deps = {}) {
   if (pages.some((p) => p.hiddenAtAi)) result.report.warning_signs.push(HIDDEN_AI_TEXT_SIGN);
 
   const directDomain = recipient && ["domain", "url"].includes(type) ? [normalizeDomain(recipient)] : [];
-  result.report.link_facts = await linkFacts({ domains: [...new Set([...found.domains, ...directDomain])].filter(Boolean), pages, ageOf, pageFrozen });
+  // The message's own words decide whether the "not a .gov.gh address" fact
+  // applies, so the text travels with the links. Text read out of an image
+  // counts too: the campaign arrives as a screenshot more often than as text.
+  result.report.link_facts = await linkFacts({
+    domains: [...new Set([...found.domains, ...directDomain])].filter(Boolean),
+    pages,
+    ageOf,
+    pageFrozen,
+    text: `${text || ""} ${image?.extracted_text || ""}`,
+  });
 
   // Set again now every rule-based finding is in. Signs AI spotted don't count.
   result.report.evidence_level = evidenceLevel({

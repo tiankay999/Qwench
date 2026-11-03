@@ -1,4 +1,4 @@
-import { WARNING_SIGN_TEMPLATES, warningSigns } from "./extract.js";
+import { WARNING_SIGN_TEMPLATES, isDemandMessage, warningSigns } from "./extract.js";
 
 /**
  * Every word Qwench says in a result comes from this file, as a fixed template.
@@ -37,6 +37,8 @@ const ALSO_CHECKED = "{value}: {sentence}";
 export const LINK_FACTS = {
   redirect: "The link {from} leads to {to}.",
   shortener: "The link uses a link shortener, which hides where it goes.",
+  shortenerShape: "The link is built like a shortened address, so where it goes isn't visible from the message.",
+  notGovernment: "The message mentions an official or government portal, but the link goes to {domain}, which is not a Ghana government address ending in .gov.gh.",
   ending: "The website address ends in {ending}, which is on Qwench's list of endings to look at closely.",
   noHttps: "The page doesn't use a secure connection (HTTPS).",
   login: "The page asks for a password.",
@@ -111,6 +113,12 @@ const QUESTIONS = {
   authority: ["Is someone using this body's name to ask you for money?"],
   impersonation: ["Can you confirm this with the business, using the contact details on its own website?"],
   no_record: ["Can you find a licence number on their website, and confirm it with SEC Ghana?", "Do they have a physical office you can visit?", "Have they promised specific returns or guaranteed profits?"],
+  // Asked when the message demands something rather than offering it.
+  demand: [
+    "Were you expecting a notice like this?",
+    "Does the link go to a .gov.gh address? That is what Ghana's government services use.",
+    "Can you reach the body it names using contact details you looked up yourself, rather than any in the message?",
+  ],
 };
 const SENT_MONEY = "Have you already sent money? If so, you can call the Cyber Security Authority on 292 and your bank.";
 
@@ -188,7 +196,17 @@ function stateSentence({ state, entity, sources, merchantClaim, didYouMean, impe
 
 export function buildReport({ state, tier = null, entity, sources = [], foreignContext = [], merchantClaim, didYouMean, impersonated, text, dataDate, isDemo = false }) {
   const signs = warningSigns(text);
-  const questions = [...(QUESTIONS[impersonated ? "impersonation" : state] || []), ...(signs.length > 2 ? [SENT_MONEY] : [])];
+  const stateQuestions = QUESTIONS[impersonated ? "impersonation" : state] || [];
+  // A demand puts its own questions first. On a plain no-record reply they
+  // replace the investment ones outright, which would otherwise ask someone
+  // forwarding a traffic fine about guaranteed profits.
+  const questions = [
+    ...new Set([
+      ...(isDemandMessage(signs) ? QUESTIONS.demand : []),
+      ...(isDemandMessage(signs) && state === "no_record" && !impersonated ? [] : stateQuestions),
+      ...(signs.length > 2 ? [SENT_MONEY] : []),
+    ]),
+  ];
   const sentence = stateSentence({ state, entity, sources, merchantClaim, didYouMean, impersonated });
 
   return {

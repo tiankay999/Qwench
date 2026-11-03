@@ -382,3 +382,71 @@ test("a Play Store link is read as an app, not a website to fetch", () => {
 test("an App Store link is read as an app", () => {
   assert.deepEqual(extract("https://apps.apple.com/gh/app/fixture-loan/id123456789").app_ids, ["apple:123456789"]);
 });
+
+/* --- Messages that pose as an official demand ---------------------------- *
+ *
+ * The traffic-fine run of late 2026 arrived as an SMS screenshot: an "Official
+ * Traffic Message" about a violation, with a shortened link. Before these
+ * rules it produced an empty report — no signs, no link facts, "not enough to
+ * go on" — which is the worst possible answer, because it reads as reassurance.
+ */
+
+const TRAFFIC_SMS =
+  "Official Traffic Message: Your vehicle has a recorded traffic violation. Check the relevant information through the official portal. https://d1.mk/v7UNjTl";
+
+test("the traffic-fine message is no longer an empty report", () => {
+  const signs = warningSigns(TRAFFIC_SMS);
+  assert.ok(signs.includes("The message says it comes from a government or official body."));
+  assert.ok(signs.includes("The message says you owe a fine or penalty."));
+});
+
+test("the demand family is caught across its pretexts", () => {
+  const cases = [
+    ["Your parcel is held at customs pending a delivery fee.", "The message says a parcel or delivery needs something from you."],
+    ["Your SIM has been suspended.", "The message says your account or service will be stopped."],
+    ["Please confirm your card details to continue.", "The message asks you to confirm personal or payment details."],
+    ["Ghana Revenue Authority: an outstanding levy is recorded.", "The message says you owe a fine or penalty."],
+  ];
+  for (const [text, expected] of cases) {
+    assert.ok(warningSigns(text).includes(expected), `missed: ${text}`);
+  }
+});
+
+test("ordinary messages do not trip the demand rules", () => {
+  for (const text of [
+    "Hey, can you send me the money for the trip tomorrow?",
+    "Your invoice for October is attached. Thanks for your business.",
+    "The road safety campaign begins next week across Accra.",
+    "Your statement is ready to view in the app.",
+  ]) {
+    assert.deepEqual(warningSigns(text), [], `false positive: ${text}`);
+  }
+});
+
+test("a demand asks about the demand, not about investment returns", () => {
+  const report = buildReport({ state: "no_record", sources: [], text: TRAFFIC_SMS });
+  assert.ok(report.questions_to_ask.some((q) => q.includes("Were you expecting")));
+  assert.ok(
+    !report.questions_to_ask.some((q) => /guaranteed profits|licence number/i.test(q)),
+    "investment questions must not be asked about a traffic fine",
+  );
+});
+
+test("an offer still gets the investment questions", () => {
+  const report = buildReport({ state: "no_record", sources: [], text: "Guaranteed returns, double your money." });
+  assert.ok(report.questions_to_ask.some((q) => /guaranteed profits/i.test(q)));
+});
+
+test("the new AI codes still need proof that is really in the text", () => {
+  const text = "Settle the penalty attached to your plate number before Friday.";
+  // The rules miss this wording; AI may catch it, but only with a real quote.
+  assert.deepEqual(warningSigns(text), []);
+  assert.deepEqual(
+    aiWarningSigns({ red_flags: [{ code: "fine_demand", quote: "Settle the penalty attached" }] }, text),
+    ["The message says you owe a fine or penalty."],
+  );
+  // Invented code, absent quote, and a quote that does not carry the claim.
+  assert.deepEqual(aiWarningSigns({ red_flags: [{ code: "definitely_a_scam", quote: "Settle the penalty" }] }, text), []);
+  assert.deepEqual(aiWarningSigns({ red_flags: [{ code: "fine_demand", quote: "not in the text at all" }] }, text), []);
+  assert.deepEqual(aiWarningSigns({ red_flags: [{ code: "fine_demand", quote: "your plate number" }] }, text), []);
+});

@@ -110,6 +110,23 @@ const SIGNS = [
   [/\baccess (?:to )?your (?:contacts?|phone ?book|photos|gallery|sms|messages)\b|\b(?:read|upload|share) your (?:contacts?|phone ?book)\b|\bcontact list\b/i, "The message asks for access to your contacts or personal data."],
   [/\bpersonal (?:account|momo|mobile money|wallet)\b/i, "The message asks you to pay into a personal account."],
   [/\bgift ?cards?\b|\bpay(?:ment)? (?:in|with|by) (?:usdt|btc|bitcoin|crypto)\b|\b(?:usdt|btc|bitcoin|crypto) only\b|\bsend (?:usdt|btc|bitcoin|crypto)\b/i, "The message asks for payment by crypto, gift card or a similar method."],
+
+  /* --- Messages that pose as an official demand -------------------------
+   *
+   * The signs above all describe an offer. This family describes a demand:
+   * a fine, a held parcel, an account about to be stopped. The pretext is
+   * different but the ask is the same one Qwench exists for — click here,
+   * then pay or hand over your details.
+   *
+   * Each sentence describes what the message SAYS. A real DVLA notice would
+   * trip the first one too, and that is correct: the sign is an observation,
+   * not an accusation. What separates the two is the link, and that is a
+   * link fact, not a sign. */
+  [/\bofficial\s+(?:traffic\s+)?(?:message|notice|portal|website|site|communication)\b|\b(?:dvla|mttd|nrsa|ghana\s+police|police\s+service|road\s+safety\s+authority|ghana\s+revenue\s+authority|customs\s+division)\b/i, "The message says it comes from a government or official body."],
+  [/\b(?:traffic|driving|speeding|parking|road)\s+(?:violation|offence|offense|fine|ticket|penalty|charge)\b|\b(?:unpaid|outstanding|overdue)\s+(?:fine|ticket|toll|penalty|tax|levy)\b/i, "The message says you owe a fine or penalty."],
+  [/\byour\s+(?:account|number|sim|line|service|card|wallet)\s+(?:has been|will be|is about to be|shall be)\s+(?:suspend|block|deactivat|restrict|clos|lock)(?:ed|e)?\b|\bto avoid (?:suspension|disconnection|deactivation|closure)\b/i, "The message says your account or service will be stopped."],
+  [/\b(?:parcel|package|shipment|delivery|consignment)\b[^.]{0,40}\b(?:held|pending|customs|duty|fee|reschedul|undeliver|address)/i, "The message says a parcel or delivery needs something from you."],
+  [/\b(?:confirm|verify|update|validate|re-?enter)\s+your\s+(?:details|information|identity|account|card|payment|billing|address|pin|password)\b/i, "The message asks you to confirm personal or payment details."],
 ];
 
 /** Describes what the message says. It makes no judgement about the sender. */
@@ -140,6 +157,17 @@ export const AI_RED_FLAGS = {
   pay_personal_account: { sign: "The message asks you to pay into a personal account.", quoteShows: /\b(?:personal|my|own|private|agent'?s)\b/i },
   unusual_payment: { sign: "The message asks for payment by crypto, gift card or a similar method.", quoteShows: /crypto|bitcoin|\bbtc\b|usdt|\beth\b|gift ?card|voucher|wallet|western union/i },
   famous_endorsement: { sign: "The message uses a well-known person's name to promote the offer." },
+  /* The demand family. Rules above catch the English wording these campaigns
+   * reuse; these codes let the model catch the same pretext when it is
+   * reworded, mistyped, or read out of a screenshot. Each still has to quote
+   * words that are really in the material, and quoteShows keeps the model from
+   * hanging the sign on a word that does not carry it. */
+  official_body_claim: { sign: "The message says it comes from a government or official body.", quoteShows: /official|government|police|authority|ministry|customs|court|dvla|mttd|nrsa|revenue|licen[cs]e|directorate|commission|department|agency|bureau|municipal|assembly/i },
+  fine_demand: { sign: "The message says you owe a fine or penalty.", quoteShows: /fine|penalt|violation|offen[cs]e|ticket|toll|unpaid|outstanding|overdue|summons/i },
+  service_suspension: { sign: "The message says your account or service will be stopped.", quoteShows: /suspend|deactivat|block|restrict|clos|disconnect|lock|terminat/i },
+  delivery_pretext: { sign: "The message says a parcel or delivery needs something from you.", quoteShows: /parcel|package|shipment|deliver|consignment|customs|courier/i },
+  detail_harvest: { sign: "The message asks you to confirm personal or payment details.", quoteShows: /confirm|verify|update|validate|re-?enter|details|identity|card number|pin|password|otp/i },
+
   official_imagery: { sign: "The image uses official-looking seals or government imagery.", visual: true },
   payout_screenshots: { sign: "The image shows payouts or balances as proof of earnings.", visual: true },
   hidden_text: { sign: "The image seems to have faint or hidden text.", visual: true },
@@ -168,3 +196,21 @@ export function aiWarningSigns(ai, text, { fromImage = false } = {}) {
 }
 
 export const WARNING_SIGN_TEMPLATES = [...SIGNS.map(([, sign]) => sign), AIMED_AT_AI_SIGN, HIDDEN_AI_TEXT_SIGN, HIDDEN_AI_IMAGE_SIGN, ...Object.values(AI_RED_FLAGS).map((f) => f.sign)];
+
+/**
+ * The signs that mean the message made a demand rather than an offer.
+ *
+ * A report keyed only to the legal state asks a person forwarding a traffic
+ * fine whether the sender promised guaranteed returns, which is the wrong
+ * question and reads as though nothing was understood. This lets the report
+ * ask about the pretext in front of the reader instead.
+ */
+export const DEMAND_SIGNS = new Set([
+  "The message says it comes from a government or official body.",
+  "The message says you owe a fine or penalty.",
+  "The message says your account or service will be stopped.",
+  "The message says a parcel or delivery needs something from you.",
+  "The message asks you to confirm personal or payment details.",
+]);
+
+export const isDemandMessage = (signs = []) => signs.some((sign) => DEMAND_SIGNS.has(sign));

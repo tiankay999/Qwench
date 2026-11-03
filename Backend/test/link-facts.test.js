@@ -7,7 +7,7 @@ import { createApp } from "../src/app.js";
 import { buildIdentifier, hashIdentifier } from "../src/lib/identifiers.js";
 import { DomainAge, Entity, Identifier, Record, Source } from "../src/models/index.js";
 import { domainAge, registrableDomain, rdapRegisteredOn, whoisRegisteredOn } from "../src/services/domainAge.js";
-import { checkMessage } from "../src/services/messageCheck.js";
+import { checkMessage, looksShortened } from "../src/services/messageCheck.js";
 
 // FIXTURE data, with fake pages and lookups. No test reaches the internet.
 before(startDb);
@@ -311,4 +311,30 @@ test("the reply and database hold nothing from the whois record", async () => {
   assert.equal(res.status, 200);
   assert.deepEqual((await res.json()).report.link_facts, []);
   await api.close();
+});
+
+/* --- Shorteners nobody has listed yet ------------------------------------ *
+ *
+ * SHORTENERS holds the ten everyone knows. A campaign only has to register an
+ * eleventh to walk past it, and the traffic-fine run used d1.mk, which is on
+ * no list. The shape is what it cannot hide.
+ */
+
+test("a link shaped like a shortener is recognised without being on the list", () => {
+  for (const link of ["https://d1.mk/v7UNjTl", "https://x9.co/aB3dEfG", "https://t.ly/Kd93ms"]) {
+    assert.equal(looksShortened(link), true, `should look shortened: ${link}`);
+  }
+});
+
+test("ordinary links are not called shorteners", () => {
+  for (const link of [
+    "https://sec.gov.gh/notices/2025",
+    "https://dvla.gov.gh/fines",
+    "https://mybank.com/login",
+    "https://news.com/article-about-traffic",
+    "https://shop.gh/p?id=99",
+    "https://bit.ly/abc123",
+  ]) {
+    assert.equal(looksShortened(link), false, `should not look shortened: ${link}`);
+  }
 });

@@ -100,6 +100,23 @@ export function buildReply(result, { query } = {}) {
     parts.push(["🔗 *About the link:*", ...report.link_facts.slice(0, 5).map((f) => `• ${f}`)].join("\n"));
   }
 
+  /* What a Ghana authority has already published about this kind of message.
+     Attributed and dated, so the reader can hold the message up against the
+     official description themselves. It is their guidance, not Qwench's. */
+  if (report.advisories?.length) {
+    for (const advisory of report.advisories.slice(0, 2)) {
+      const dated = [advisory.publisher, advisory.date].filter(Boolean).join(", ");
+      parts.push(
+        [
+          `🏛️ *${advisory.topic}*`,
+          `From ${dated}:`,
+          ...advisory.points.map((p) => `• ${p}`),
+          advisory.url,
+        ].join("\n"),
+      );
+    }
+  }
+
   // Where a scheme borrows a real company's name, say whose.
   if (report.foreign_context?.length) {
     parts.push(["🌍 *Also found abroad:*", ...report.foreign_context.slice(0, 3).map((f) => `• ${f}`)].join("\n"));

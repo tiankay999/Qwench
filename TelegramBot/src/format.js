@@ -42,6 +42,11 @@ export function formatReply(reply) {
     section("Warning signs", report.warning_signs),
     section("Spotted by AI", report.ai_warning_signs),
     section("About the link", report.link_facts),
+    // Published guidance from a Ghana authority, attributed and linked. Their
+    // words about how the real service works, not a finding about this message.
+    ...(report.advisories || []).map((a) =>
+      section(`${a.topic}\n(${[a.publisher, a.date].filter(Boolean).join(", ")})`, [...a.points, a.url]),
+    ),
     section("Questions to ask", report.questions_to_ask),
     ...report.notes,
     report.disclaimer,

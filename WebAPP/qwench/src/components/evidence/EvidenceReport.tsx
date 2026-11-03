@@ -7,6 +7,7 @@ import {
   Globe,
   HelpCircle,
   Info,
+  Landmark,
   Link2,
   Percent,
   Search,
@@ -137,6 +138,30 @@ export function EvidenceReport({
           <Bullets items={r.link_facts} />
         </Section>
       )}
+
+      {/* What a Ghana authority has already published about this kind of
+          message. Their wording, their date, their link — the reader can hold
+          the message up against the official description themselves. It is not
+          a finding about the sender and it changes no evidence level. */}
+      {r.advisories?.length > 0 &&
+        r.advisories.map((a) => (
+          <Section key={a.url} icon={Landmark} title={a.topic}>
+            <p className="mb-3 flex flex-wrap items-baseline gap-x-2.5 gap-y-1 text-sm">
+              <span className="font-semibold text-text-secondary">{a.publisher}</span>
+              {a.date && <time className="tabular font-mono text-text-muted">{a.date}</time>}
+            </p>
+            <Bullets items={a.points} />
+            <a
+              href={a.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-flex items-center gap-1.5 text-sm text-accent underline underline-offset-[3px] hover:decoration-2"
+            >
+              Read it on {new URL(a.url).hostname}
+              <ExternalLink className="size-3.5" strokeWidth={1.75} aria-hidden />
+            </a>
+          </Section>
+        ))}
 
       {r.foreign_context.length > 0 && (
         <Section icon={Globe} title="Context from outside Ghana">

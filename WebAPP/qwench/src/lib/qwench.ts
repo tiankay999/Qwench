@@ -32,6 +32,16 @@ export type Source = {
   quote?: string | null;
 };
 
+export type Advisory = {
+  publisher: string;
+  /** Qwench's own neutral description of what the guidance covers. */
+  topic: string;
+  /** Null where the publisher's page carries no date. Never invented. */
+  date: string | null;
+  url: string;
+  points: string[];
+};
+
 /** How much evidence there is. Grades the evidence, never the scheme. */
 export type EvidenceLevel = {
   code: string;
@@ -54,6 +64,13 @@ export type Report = {
   /** Signs AI spotted. Shown apart, labelled, and counted toward nothing. */
   ai_warning_signs: string[];
   link_facts: string[];
+  /**
+   * Guidance a Ghana authority has already published about this kind of
+   * message, attached by the engine when the rules match it. It is that
+   * body's wording, carrying its own publisher, date and link. It is not a
+   * finding about the sender and it changes no status or evidence level.
+   */
+  advisories: Advisory[];
   foreign_context: string[];
   also_checked: string[];
   questions_to_ask: string[];

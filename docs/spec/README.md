@@ -89,6 +89,18 @@ Stay in your own area. If you need something from another owner, list it for the
   address". The reply asks about the demand instead of about investment returns. The signs
   still only describe what the message says — a real DVLA notice trips the first one too, and
   the link fact is what separates them.
+- **Published guidance in a reply:** added 3 November 2026. A new `report.advisories` block
+  carries what a Ghana authority has already published about the pretext the rules matched,
+  with that body's publisher, date and link. Two are seeded: **Ghana Police Service** on
+  TraffiTech-GH (`police.gov.gh/en/index.php/traffitech-gh/`, no date on the page, so the
+  field is null rather than invented) and the **Cyber Security Authority** on fake parcel
+  delivery (`csa.gov.gh/cert-gh-alert43.php`, ref CSA/CERT/MPA/2025-12/01, 30 December 2025).
+  It attaches only when the matching sign fired, changes no status, tier or evidence level,
+  and renders on all three channels. Guidance must come from a `.gov.gh` address — a test
+  enforces it. The publisher's own title is **not** carried: the CSA's contains "Scam", and
+  while Rule 2 allows an exact regulator quote, the web app's scraper cannot tell a quote
+  from Qwench's voice. The same tension will bite the first `Record.quote` or source title
+  that contains a banned word, and is unresolved.
 
 ## Code already on `main`
 

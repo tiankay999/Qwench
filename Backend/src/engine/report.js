@@ -122,6 +122,60 @@ const QUESTIONS = {
 };
 const SENT_MONEY = "Have you already sent money? If so, you can call the Cyber Security Authority on 292 and your bank.";
 
+/**
+ * What a Ghana authority has already published about this kind of message.
+ *
+ * This is the strongest thing Qwench can offer here, because the check itself
+ * finds no record: the sender is a stranger's number and the link is a day old.
+ * What exists is an official description of how the real service works, and a
+ * reader can hold the message up against it themselves.
+ *
+ * `topic` and `points` are Qwench's own wording and are covered by the
+ * banned-word test. The publisher's own title is deliberately not carried: the
+ * CSA's is "Fake Parcel Delivery and Clearance Scam Involving Phishing Links",
+ * and while Rule 2 allows an exact regulator quote, the web app's scraper
+ * cannot tell a quote from Qwench's voice. Publisher, date and link are enough
+ * to find it.
+ *
+ * Nothing here is a finding about the sender. It changes no status and no tier.
+ */
+export const ADVISORIES = {
+  traffitech: {
+    publisher: "Ghana Police Service",
+    topic: "How a genuine TraffiTech-GH traffic notice reaches you",
+    // The page carries no published date. Better empty than invented.
+    date: null,
+    url: "https://police.gov.gh/en/index.php/traffitech-gh/",
+    points: [
+      "A genuine TraffiTech-GH notice comes from the sender ID GPS-MTTD, not from an ordinary phone number.",
+      "A genuine notice carries no link to click.",
+      "The payment routes given are traffitech-ghpay.nib.com.gh and the USSD code *710*0#.",
+      "Outstanding fines on a vehicle can be checked on *220#.",
+      "A message like this can be reported on 191, or on 18555 toll-free.",
+    ],
+  },
+  parcel: {
+    publisher: "Cyber Security Authority",
+    topic: "Messages about a parcel held for a delivery or clearance fee",
+    date: "2025-12-30",
+    url: "https://csa.gov.gh/cert-gh-alert43.php",
+    points: [
+      "The Authority recorded couriers being impersonated by text message, with links to look-alike delivery pages.",
+      "It gives the courier's own website or published contact number as the way to check a delivery claim.",
+    ],
+  },
+};
+
+const ADVISORY_TRIGGERS = [
+  ["traffitech", ["The message says it comes from a government or official body.", "The message says you owe a fine or penalty."]],
+  ["parcel", ["The message says a parcel or delivery needs something from you."]],
+];
+
+/** Picks the published guidance that matches what the rules actually found. */
+function advisoriesFor(signs) {
+  return ADVISORY_TRIGGERS.filter(([, triggers]) => triggers.some((t) => signs.includes(t))).map(([id]) => ADVISORIES[id]);
+}
+
 const RETURN_NOTE = "That is about {annual}% a year, by simple multiplication. It is not a forecast.";
 
 /** Everything Qwench can say, for the banned-word test. */
@@ -139,6 +193,11 @@ export const ALL_TEMPLATES = Object.fromEntries(
     ...Object.fromEntries(Object.entries(LINK_FACTS).map(([k, v]) => [`link_fact_${k}`, v])),
     ...Object.fromEntries(Object.entries(QUESTIONS).flatMap(([state, list]) => list.map((q, i) => [`question_${state}_${i}`, q]))),
     ...Object.fromEntries(WARNING_SIGN_TEMPLATES.map((sign, i) => [`warning_sign_${i}`, sign])),
+    // Qwench's wording about each advisory. The publisher's own title is not
+    // carried, so nothing here is a quote exempt from the banned-word test.
+    ...Object.fromEntries(
+      Object.entries(ADVISORIES).flatMap(([id, a]) => [[`advisory_${id}_topic`, a.topic], ...a.points.map((p, i) => [`advisory_${id}_point_${i}`, p])])
+    ),
   })
 );
 
@@ -218,6 +277,8 @@ export function buildReport({ state, tier = null, entity, sources = [], foreignC
     warning_signs: signs,
     ai_warning_signs: [],
     link_facts: [],
+    // Published guidance that matches what the rules found. Not a finding.
+    advisories: advisoriesFor(signs),
     questions_to_ask: questions,
     notes: [],
     evidence_level: evidenceLevel({ state, tier, impersonated, foreignContext, merchantClaim, signCount: signs.length }),

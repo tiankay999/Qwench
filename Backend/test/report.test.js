@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 process.env.HMAC_SECRET_KEY = "test-only-hmac-secret-key";
 
-const { ALL_TEMPLATES, DISCLAIMER, EVIDENCE_LEVELS, NO_RECORD_SENTENCE, buildReport, evidenceLevel, returnCheck } = await import("../src/engine/report.js");
+const { ADVISORIES, ALL_TEMPLATES, DISCLAIMER, EVIDENCE_LEVELS, NO_RECORD_SENTENCE, buildReport, evidenceLevel, returnCheck } = await import("../src/engine/report.js");
 const { AI_RED_FLAGS, aiWarningSigns, aimedAtAi, cleanText, extract, mergeAiCandidates, warningSigns } = await import("../src/engine/extract.js");
 
 const ALLOWED = "This does not mean it is safe or unsafe.";
@@ -52,7 +52,7 @@ test("banned words: an impersonation report", () => {
 
 test("every report has the fixed parts, in order", () => {
   const report = buildReport({ ...SAMPLE, state: "named_in_notice" });
-  assert.deepEqual(Object.keys(report), ["state_sentence", "foreign_context", "also_checked", "sources", "return_check", "warning_signs", "ai_warning_signs", "link_facts", "questions_to_ask", "notes", "evidence_level", "disclaimer", "footer"]);
+  assert.deepEqual(Object.keys(report), ["state_sentence", "foreign_context", "also_checked", "sources", "return_check", "warning_signs", "ai_warning_signs", "link_facts", "advisories", "questions_to_ask", "notes", "evidence_level", "disclaimer", "footer"]);
 });
 
 test("no record says it isn't a clean result", () => {
@@ -449,4 +449,35 @@ test("the new AI codes still need proof that is really in the text", () => {
   assert.deepEqual(aiWarningSigns({ red_flags: [{ code: "definitely_a_scam", quote: "Settle the penalty" }] }, text), []);
   assert.deepEqual(aiWarningSigns({ red_flags: [{ code: "fine_demand", quote: "not in the text at all" }] }, text), []);
   assert.deepEqual(aiWarningSigns({ red_flags: [{ code: "fine_demand", quote: "your plate number" }] }, text), []);
+});
+
+/* --- Published guidance from a Ghana authority ---------------------------- */
+
+test("a traffic-fine message carries the Ghana Police TraffiTech-GH guidance", () => {
+  const report = buildReport({ state: "no_record", sources: [], text: TRAFFIC_SMS });
+  const police = report.advisories.find((a) => a.publisher === "Ghana Police Service");
+  assert.ok(police, "the police advisory must be attached");
+  assert.match(police.url, /^https:\/\/police\.gov\.gh\//);
+  assert.ok(police.points.some((p) => p.includes("GPS-MTTD")));
+  assert.ok(police.points.some((p) => /carries no link/i.test(p)));
+});
+
+test("a parcel message carries the Cyber Security Authority advisory, with its date", () => {
+  const report = buildReport({ state: "no_record", sources: [], text: "Your parcel is held at customs pending a delivery fee." });
+  const csa = report.advisories.find((a) => a.publisher === "Cyber Security Authority");
+  assert.ok(csa, "the CSA advisory must be attached");
+  assert.equal(csa.date, "2025-12-30");
+  assert.match(csa.url, /^https:\/\/csa\.gov\.gh\//);
+});
+
+test("an ordinary check carries no advisory", () => {
+  assert.deepEqual(buildReport({ state: "no_record", sources: [], text: "Is this company licensed?" }).advisories, []);
+  assert.deepEqual(buildReport({ ...SAMPLE, state: "licensed" }).advisories, []);
+});
+
+test("an advisory never carries a publisher's date it does not have", () => {
+  for (const advisory of Object.values(ADVISORIES)) {
+    assert.ok(advisory.date === null || /^\d{4}-\d{2}-\d{2}$/.test(advisory.date), `bad date on ${advisory.publisher}`);
+    assert.match(advisory.url, /^https:\/\/[a-z0-9.-]+\.gov\.gh\//, "guidance must come from a Ghana government address");
+  }
 });

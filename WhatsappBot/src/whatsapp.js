@@ -154,6 +154,7 @@ export async function startWhatsApp() {
      socket had got that far. */
   const pairingWanted = Boolean(PAIRING_NUMBER) && !sock.authState.creds.registered;
   let pairingRequested = false;
+  let pairingWatchdog = null;
 
   async function issuePairingCode() {
     if (pairingRequested || myGeneration !== generation) return;
@@ -180,9 +181,52 @@ export async function startWhatsApp() {
       console.log("  refused, wait for the next one rather than retyping this.");
       console.log("===========================================================");
       console.log("");
+
+      /* If WhatsApp never answers, say what that means. Silence here has three
+         very different causes and the log used to show the same nothing for
+         all of them. */
+      clearTimeout(pairingWatchdog);
+      pairingWatchdog = setTimeout(() => {
+        console.log("");
+        console.log("[wa] ⏱️  No answer from WhatsApp since the code was issued.");
+        console.log("[wa]    Nothing reached this server, so the code was never entered,");
+        console.log("[wa]    or WhatsApp declined to register this device. Check, in order:");
+        console.log("[wa]    1. The phone already has 4 linked devices — WhatsApp allows no more.");
+        console.log("[wa]       Settings > Linked devices, remove one, then try again.");
+        console.log(`[wa]    2. The number entered on the phone is +${maskNumber(PAIRING_NUMBER)}.`);
+        console.log("[wa]    3. You used 'Link with phone number instead', not the QR screen.");
+        console.log("[wa]    4. WhatsApp often refuses code-pairing from a data-centre IP.");
+        console.log("[wa]       Unset PAIRING_NUMBER and scan the QR from this log instead.");
+        console.log("");
+      }, 150000);
     } catch (err) {
       pairingRequested = false;
       console.error("[wa] failed to request pairing code:", err.message);
+    }
+  }
+
+  /* WhatsApp's own answers to the pairing request.
+     Without these the log shows a code and then nothing at all, and a server
+     that refused the registration looks exactly like a code typed wrongly or a
+     phone that never sent anything. These three lines tell those apart. */
+  if (pairingWanted) {
+    try {
+      sock.ws.on("CB:notification", (node) => {
+        const children = Array.isArray(node?.content) ? node.content : [];
+        if (children.some((c) => c?.tag === "link_code_companion_reg")) {
+          clearTimeout(pairingWatchdog);
+          console.log("[wa] ✅ WhatsApp accepted the code — completing the link...");
+        }
+      });
+      sock.ws.on("CB:iq,,pair-success", () => {
+        clearTimeout(pairingWatchdog);
+        console.log("[wa] ✅ pair-success received from WhatsApp.");
+      });
+      sock.ws.on("CB:stream:error", (node) => {
+        console.log(`[wa] ⚠️  stream error from WhatsApp: ${JSON.stringify(node?.attrs || {})}`);
+      });
+    } catch (err) {
+      console.log("[wa] (could not attach pairing diagnostics:", err.message, ")");
     }
   }
 
@@ -213,6 +257,7 @@ export async function startWhatsApp() {
     }
 
     if (connection === "open") {
+      clearTimeout(pairingWatchdog);
       reconnectAttempts = 0;
       const me = sock.user?.id?.split(":")[0] || "unknown";
       console.log("");
